@@ -6,6 +6,11 @@ def test_extract_dataset_url_finds_symbol_specific_json_endpoint() -> None:
     assert extract_dataset_url(html_text, "SMH") == "https://api.example.test/holdings?ticker=SMH"
 
 
+def test_extract_dataset_url_allows_query_params_after_symbol() -> None:
+    html_text = '<script>{"contentUrl":"https://api.example.test/holdings?foo=bar&ticker=SMH&baz=qux"}</script>'
+    assert extract_dataset_url(html_text, "SMH") == "https://api.example.test/holdings?foo=bar&ticker=SMH&baz=qux"
+
+
 def test_parse_vaneck_payload_builds_fetch_result() -> None:
     payload = {
         "HoldingsList": [

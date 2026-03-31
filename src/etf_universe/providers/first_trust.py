@@ -32,17 +32,35 @@ def parse_first_trust_html(html_text: str, source_url: str) -> FetchResult:
 
     header_cells = table_rows[0].find_all(["td", "th"], recursive=False)
     headers = [cell.get_text(" ", strip=True) for cell in header_cells]
-    if "Security Name" not in headers or "Weighting" not in headers:
-        raise ValueError(f"Unexpected holdings table headers: {headers}")
+    header_to_index = {header: index for index, header in enumerate(headers)}
+
+    def resolve_header(name_options: list[str], purpose: str) -> int:
+        for name in name_options:
+            if name in header_to_index:
+                return header_to_index[name]
+        raise ValueError(
+            f"Missing required header for {purpose}; expected one of {name_options}, found {headers}"
+        )
+
+    name_index = resolve_header(["Security Name"], "security name")
+    symbol_index = resolve_header(["Identifier", "Ticker", "Symbol"], "ticker")
+    classification_index = resolve_header(["Classification", "Security Type"], "classification")
+    weight_index = resolve_header(["Weighting"], "weighting")
+
+    def get_cell_text(cells: list[Any], index: int) -> str:
+        if index < len(cells):
+            return cells[index].get_text(" ", strip=True)
+        return ""
 
     records: list[SourceHoldingRow] = []
     for row in table_rows[1:]:
         cells = row.find_all("td", recursive=False)
-        if len(cells) < 7:
+        if not cells:
             continue
-        name, symbol, _, classification, _, _, weight = [
-            cell.get_text(" ", strip=True) for cell in cells[:7]
-        ]
+        name = get_cell_text(cells, name_index)
+        symbol = get_cell_text(cells, symbol_index)
+        classification = get_cell_text(cells, classification_index)
+        weight = get_cell_text(cells, weight_index)
         if clean_text(symbol) is None and clean_text(name) is None:
             continue
         records.append(

@@ -10,7 +10,8 @@ from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row
 
 
 def extract_dataset_url(html_text: str, symbol: str) -> str:
-    match = re.search(r'"contentUrl"\s*:\s*"([^"]+ticker=' + re.escape(symbol) + r')"', html_text)
+    pattern = r'"contentUrl"\s*:\s*"([^"]*?ticker=' + re.escape(symbol) + r'[^"]*?)"'
+    match = re.search(pattern, html_text)
     if not match:
         raise ValueError(f"Unable to find VanEck dataset URL for {symbol}")
     return html.unescape(match.group(1))
