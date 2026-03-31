@@ -10,9 +10,10 @@ from etf_universe.contracts import FetchResult, HoldingsMeta, NormalizedHoldingR
 
 META_SCHEMA_VERSION = "2026-03-31.etf-universe-meta.v1"
 ALLOWED_EQUITY_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)*$")
-PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "na", "nan", "none", "null"})
+PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "nan", "none", "null"})
 CASH_LIKE_FIELD_TERMS = ("cash", "cash equivalent", "currency", "money market")
 NON_HOLDING_NAME_TERMS = ("cash and other", "cash position", "other assets", "other liabilities")
+CURRENCY_NAME_SUFFIXES = (" dollar", " dollars", " euro", " euros", " pound", " pounds", " yen", " francs")
 
 
 def clean_text(value: Any) -> str | None:
@@ -85,6 +86,12 @@ def is_locally_eligible_holding_row(row: SourceHoldingRow) -> bool:
         lowered_name = name.casefold()
         if any(term in lowered_name for term in NON_HOLDING_NAME_TERMS):
             return False
+
+        normalized_symbol = normalize_symbol(row.constituent_symbol)
+        if normalized_symbol is not None:
+            if re.fullmatch(r"[A-Z]{3}", normalized_symbol) and lowered_name.startswith(("us ", "u.s. ", "canadian ", "australian ")):
+                if lowered_name.endswith(CURRENCY_NAME_SUFFIXES):
+                    return False
 
     return True
 
