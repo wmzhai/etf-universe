@@ -1,3 +1,5 @@
+import pytest
+
 from etf_universe.providers.vaneck import extract_dataset_url, parse_vaneck_payload
 
 
@@ -9,6 +11,12 @@ def test_extract_dataset_url_finds_symbol_specific_json_endpoint() -> None:
 def test_extract_dataset_url_allows_query_params_after_symbol() -> None:
     html_text = '<script>{"contentUrl":"https://api.example.test/holdings?foo=bar&ticker=SMH&baz=qux"}</script>'
     assert extract_dataset_url(html_text, "SMH") == "https://api.example.test/holdings?foo=bar&ticker=SMH&baz=qux"
+
+
+def test_extract_dataset_url_rejects_similar_symbol_values() -> None:
+    html_text = '<script>{"contentUrl":"https://api.example.test/holdings?ticker=SMHX&lang=en"}</script>'
+    with pytest.raises(ValueError):
+        extract_dataset_url(html_text, "SMH")
 
 
 def test_parse_vaneck_payload_builds_fetch_result() -> None:
