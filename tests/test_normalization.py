@@ -1,5 +1,7 @@
 from datetime import date, datetime, timezone
 
+import pytest
+
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import (
     collect_candidate_symbols,
@@ -78,6 +80,32 @@ def test_collect_candidate_symbols_rejects_unclassified_currency_placeholders() 
         rows=[
             SourceHoldingRow("AAPL", "Apple", 6.1),
             SourceHoldingRow("USD", "US Dollar", 0.2),
+        ],
+    )
+
+    assert collect_candidate_symbols(fetch_result) == ["AAPL"]
+
+
+@pytest.mark.parametrize(
+    ("currency_symbol", "currency_name"),
+    [
+        ("EUR", "Euro"),
+        ("JPY", "Japanese Yen"),
+        ("GBP", "British Pound"),
+        ("CHF", "Swiss Franc"),
+    ],
+)
+def test_collect_candidate_symbols_rejects_iso_currency_code_name_pairs(
+    currency_symbol: str,
+    currency_name: str,
+) -> None:
+    fetch_result = FetchResult(
+        as_of_date=date(2026, 3, 28),
+        source_url="https://example.com/source",
+        source_format="csv",
+        rows=[
+            SourceHoldingRow("AAPL", "Apple", 6.1),
+            SourceHoldingRow(currency_symbol, currency_name, 0.2),
         ],
     )
 
@@ -169,6 +197,48 @@ def test_normalize_for_storage_rejects_unclassified_currency_placeholders() -> N
         fetched_at=datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc),
         fetch_result=fetch_result,
         valid_symbols={"AAPL", "USD"},
+    )
+
+    assert [row.symbol for row in rows] == ["AAPL"]
+    assert meta.normalizedRowCount == 1
+    assert meta.droppedRowCount == 1
+
+
+@pytest.mark.parametrize(
+    ("currency_symbol", "currency_name"),
+    [
+        ("EUR", "Euro"),
+        ("JPY", "Japanese Yen"),
+        ("GBP", "British Pound"),
+        ("CHF", "Swiss Franc"),
+    ],
+)
+def test_normalize_for_storage_rejects_iso_currency_code_name_pairs(
+    currency_symbol: str,
+    currency_name: str,
+) -> None:
+    spec = EtfSpec(
+        symbol="SPY",
+        group="Layer 0",
+        issuer="SSGA",
+        provider="ssga",
+        source_url="https://example.com/spy.xlsx",
+    )
+    fetch_result = FetchResult(
+        as_of_date=date(2026, 3, 28),
+        source_url="https://example.com/spy.xlsx",
+        source_format="xlsx",
+        rows=[
+            SourceHoldingRow("AAPL", "Apple", 6.1),
+            SourceHoldingRow(currency_symbol, currency_name, 0.2),
+        ],
+    )
+
+    rows, meta = normalize_for_storage(
+        spec=spec,
+        fetched_at=datetime(2026, 3, 31, 12, 0, tzinfo=timezone.utc),
+        fetch_result=fetch_result,
+        valid_symbols={"AAPL", currency_symbol},
     )
 
     assert [row.symbol for row in rows] == ["AAPL"]

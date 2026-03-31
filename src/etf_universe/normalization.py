@@ -13,7 +13,13 @@ ALLOWED_EQUITY_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)*$")
 PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "nan", "none", "null"})
 CASH_LIKE_FIELD_TERMS = ("cash", "cash equivalent", "currency", "money market")
 NON_HOLDING_NAME_TERMS = ("cash and other", "cash position", "other assets", "other liabilities")
-CURRENCY_NAME_SUFFIXES = (" dollar", " dollars", " euro", " euros", " pound", " pounds", " yen", " francs")
+ISO_CURRENCY_PLACEHOLDERS = {
+    "USD": frozenset({"us dollar"}),
+    "EUR": frozenset({"euro"}),
+    "JPY": frozenset({"japanese yen"}),
+    "GBP": frozenset({"british pound"}),
+    "CHF": frozenset({"swiss franc"}),
+}
 
 
 def clean_text(value: Any) -> str | None:
@@ -72,6 +78,19 @@ def is_supported_equity_symbol(symbol: str) -> bool:
     return bool(ALLOWED_EQUITY_SYMBOL_PATTERN.fullmatch(symbol))
 
 
+def is_unclassified_currency_placeholder(row: SourceHoldingRow) -> bool:
+    normalized_symbol = normalize_symbol(row.constituent_symbol)
+    name = clean_text(row.constituent_name)
+    if normalized_symbol is None or name is None:
+        return False
+
+    currency_names = ISO_CURRENCY_PLACEHOLDERS.get(normalized_symbol)
+    if currency_names is None:
+        return False
+
+    return name.casefold() in currency_names
+
+
 def is_locally_eligible_holding_row(row: SourceHoldingRow) -> bool:
     for value in (row.asset_class, row.security_type):
         text = clean_text(value)
@@ -86,12 +105,8 @@ def is_locally_eligible_holding_row(row: SourceHoldingRow) -> bool:
         lowered_name = name.casefold()
         if any(term in lowered_name for term in NON_HOLDING_NAME_TERMS):
             return False
-
-        normalized_symbol = normalize_symbol(row.constituent_symbol)
-        if normalized_symbol is not None:
-            if re.fullmatch(r"[A-Z]{3}", normalized_symbol) and lowered_name.startswith(("us ", "u.s. ", "canadian ", "australian ")):
-                if lowered_name.endswith(CURRENCY_NAME_SUFFIXES):
-                    return False
+    if is_unclassified_currency_placeholder(row):
+        return False
 
     return True
 
