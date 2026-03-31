@@ -98,12 +98,16 @@ class YFinanceSymbolValidator:
         valid_symbols: set[str] = set()
         if len(download_symbols) == 1:
             yahoo_symbol = download_symbols[0]
+            storage_symbol = yahoo_to_storage_symbol[download_symbols[0]]
             symbol_data = self._extract_symbol_data(data, yahoo_symbol)
             if has_usable_ohlcv_rows(symbol_data):
-                storage_symbol = yahoo_to_storage_symbol[download_symbols[0]]
                 normalized = normalize_symbol(storage_symbol)
                 if normalized is not None:
                     valid_symbols.add(normalized)
+                return valid_symbols
+            normalized = self._recheck_uncertain_symbol(storage_symbol)
+            if normalized is not None:
+                valid_symbols.add(normalized)
             return valid_symbols
 
         if not isinstance(data, pd.DataFrame) or data.empty:

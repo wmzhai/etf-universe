@@ -136,6 +136,39 @@ def test_validate_symbols_handles_single_symbol_multiindex_download_shape(monkey
     assert len(calls) == 1
 
 
+def test_validate_symbols_retries_uncertain_single_symbol_batches(monkeypatch) -> None:
+    calls: list[object] = []
+
+    def fake_download(symbols, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(symbols)
+        assert kwargs["threads"] is False
+        if symbols == "MSFT" and len(calls) == 1:
+            return _make_ohlcv_frame(
+                open_value=math.nan,
+                high_value=math.nan,
+                low_value=math.nan,
+                close_value=math.nan,
+                volume_value=math.nan,
+            )
+        if symbols == "MSFT":
+            return _make_ohlcv_frame(
+                open_value=400.0,
+                high_value=401.0,
+                low_value=398.0,
+                close_value=399.0,
+                volume_value=3000.0,
+            )
+        raise AssertionError(f"unexpected symbols: {symbols!r}")
+
+    monkeypatch.setattr("etf_universe.validation.yfinance.download", fake_download)
+    validator = YFinanceSymbolValidator()
+
+    valid_symbols = validator.validate_symbols(["MSFT"])
+
+    assert valid_symbols == {"MSFT"}
+    assert calls == ["MSFT", "MSFT"]
+
+
 def test_validate_symbols_splits_large_inputs_into_batches(monkeypatch) -> None:
     call_symbols: list[object] = []
 
