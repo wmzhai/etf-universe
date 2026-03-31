@@ -62,7 +62,7 @@ All files land under the directory passed to `--output-dir` (defaults to `data/e
 
 ## Symbol validation
 
-Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with `yfinance` over a five-day window at a one-day cadence. Validation makes HTTPS calls that convert dots to dashes (Yahoo’s ticker format) only for the download request; stored data and metadata remain in dot form. Records are deduplicated and processed in batches of up to 100 tickers so the rate limits of `yfinance`/Yahoo Finance stay manageable. No API key is required because validation relies on the public `yfinance.download` interface.
+Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with `yfinance` over a five-day window at a one-day cadence. Validation makes HTTPS calls that convert dots to dashes (Yahoo’s ticker format) only for the download request; stored data and metadata remain in dot form. When multiple ETFs are fetched together, the CLI first builds the full candidate-symbol universe, deduplicates it once, and then validates it in sequential batches of up to 50 tickers with conservative retry/backoff behavior. No API key is required because validation relies on the public `yfinance.download` interface.
 
 ## Development
 

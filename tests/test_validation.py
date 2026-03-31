@@ -38,7 +38,7 @@ def test_validate_symbols_keeps_real_ohlcv_and_rejects_all_nan_rows(monkeypatch)
         assert kwargs["group_by"] == "ticker"
         assert kwargs["auto_adjust"] is False
         assert kwargs["progress"] is False
-        assert kwargs["threads"] is True
+        assert kwargs["threads"] is False
         assert symbols == ["BRK-B", "AAPL", "FAKE"]
         return pd.concat(
             {
@@ -166,3 +166,87 @@ def test_validate_symbols_splits_large_inputs_into_batches(monkeypatch) -> None:
     assert call_symbols[0] == ["AAPL", "MSFT"]
     assert call_symbols[1] == ["GOOG", "TSLA"]
     assert call_symbols[2] == "NVDA"
+
+
+def test_validate_symbols_retries_failed_batches_sequentially(monkeypatch) -> None:
+    calls: list[tuple[object, dict]] = []
+    sleep_calls: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    def fake_download(symbols, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((symbols, kwargs))
+        if len(calls) == 1:
+            raise OSError("temporary Yahoo failure")
+        assert kwargs["threads"] is False
+        assert symbols == ["BRK-B", "AAPL"]
+        return pd.concat(
+            {
+                "BRK-B": _make_ohlcv_frame(
+                    open_value=500.0,
+                    high_value=505.0,
+                    low_value=499.0,
+                    close_value=503.0,
+                    volume_value=1000.0,
+                ),
+                "AAPL": _make_ohlcv_frame(
+                    open_value=200.0,
+                    high_value=201.0,
+                    low_value=198.0,
+                    close_value=199.0,
+                    volume_value=5000.0,
+                ),
+            },
+            axis=1,
+        )
+
+    monkeypatch.setattr("etf_universe.validation.time.sleep", fake_sleep)
+    monkeypatch.setattr("etf_universe.validation.yfinance.download", fake_download)
+    validator = YFinanceSymbolValidator(batch_size=2)
+
+    valid_symbols = validator.validate_symbols(["BRK.B", "AAPL"])
+
+    assert valid_symbols == {"BRK.B", "AAPL"}
+    assert len(calls) == 2
+    assert sleep_calls == [2.0]
+
+
+def test_validate_symbols_rechecks_symbols_missing_from_partial_batch_results(
+    monkeypatch,
+) -> None:
+    calls: list[object] = []
+
+    def fake_download(symbols, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(symbols)
+        assert kwargs["threads"] is False
+        if symbols == ["AAPL", "MSFT"]:
+            return pd.concat(
+                {
+                    "AAPL": _make_ohlcv_frame(
+                        open_value=200.0,
+                        high_value=201.0,
+                        low_value=198.0,
+                        close_value=199.0,
+                        volume_value=5000.0,
+                    )
+                },
+                axis=1,
+            )
+        if symbols == "MSFT":
+            return _make_ohlcv_frame(
+                open_value=400.0,
+                high_value=401.0,
+                low_value=398.0,
+                close_value=399.0,
+                volume_value=3000.0,
+            )
+        raise AssertionError(f"unexpected symbols: {symbols!r}")
+
+    monkeypatch.setattr("etf_universe.validation.yfinance.download", fake_download)
+    validator = YFinanceSymbolValidator(batch_size=2)
+
+    valid_symbols = validator.validate_symbols(["AAPL", "MSFT"])
+
+    assert valid_symbols == {"AAPL", "MSFT"}
+    assert calls == [["AAPL", "MSFT"], "MSFT"]
