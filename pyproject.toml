@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "etf-universe"
 version = "0.1.0"
 description = "Curated ETF holdings fetcher and exporter."
-readme = { text = "Curated ETF holdings fetcher and exporter.", content-type = "text/plain" }
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "beautifulsoup4>=4.12.3",
