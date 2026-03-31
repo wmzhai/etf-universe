@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "etf-universe"
+version = "0.1.0"
+description = "Curated ETF holdings fetcher and exporter."
+readme = { text = "Curated ETF holdings fetcher and exporter.", content-type = "text/plain" }
+requires-python = ">=3.12"
+dependencies = [
+  "beautifulsoup4>=4.12.3",
+  "openpyxl>=3.1.5",
+  "playwright>=1.52.0",
+  "pyarrow>=20.0.0",
+  "requests>=2.32.3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.3.5"]
+
+[project.scripts]
+etf-universe = "etf_universe.cli:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-ra"
+testpaths = ["tests"]
