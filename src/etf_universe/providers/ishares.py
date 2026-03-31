@@ -35,6 +35,9 @@ def parse_ishares_csv(text: str, source_url: str) -> FetchResult:
         if len(raw_row) < len(headers):
             continue
         row = dict(zip(headers, raw_row))
+        asset_class = clean_text(row.get("Asset Class"))
+        if asset_class is not None and asset_class.casefold() != "equity":
+            continue
         if clean_text(row.get("Ticker")) is None and clean_text(row.get("Name")) is None:
             continue
         if parse_float(row.get("Weight (%)")) is None:

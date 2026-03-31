@@ -13,3 +13,16 @@ MSFT,Microsoft Corp.,Technology,Equity,5.90,Common Stock
     assert result.source_format == "csv"
     assert result.as_of_date.isoformat() == "2026-03-28"
     assert [row.constituent_symbol for row in result.rows] == ["AAPL", "MSFT"]
+
+
+def test_parse_ishares_csv_skips_non_equity_rows() -> None:
+    csv_text = """Fund Holdings as of,Mar 28, 2026
+Ticker,Name,Sector,Asset Class,Weight (%),Security Type
+AAPL,Apple Inc.,Technology,Equity,6.10,Common Stock
+RTYM6,RUSSELL 2000 EMINI CME JUN 26,Derivatives,Futures,0.00,
+MSFT,Microsoft Corp.,Technology,Equity,5.90,Common Stock
+"""
+
+    result = parse_ishares_csv(csv_text, "https://example.com/iwm.csv")
+
+    assert [row.constituent_symbol for row in result.rows] == ["AAPL", "MSFT"]
