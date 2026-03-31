@@ -11,7 +11,7 @@ Curated ETF holdings fetcher and exporter.
 
 ```sh
 uv run etf-universe holdings list-supported
-uv run etf-universe holdings fetch --symbols SPY XLK
+uv run etf-universe holdings fetch --symbols SPY,XLK
 ```
 
 The fetch command writes each ETF’s normalized holdings to `data/etf-holdings/<SYMBOL>.parquet` by default and a companion `<SYMBOL>.meta.json`.
