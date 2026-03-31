@@ -112,21 +112,20 @@ class YFinanceSymbolValidator:
             return valid_symbols
 
         available_symbols = set(data.columns.get_level_values(0))
+        symbols_to_recheck: list[str] = []
         for yahoo_symbol, storage_symbol in yahoo_to_storage_symbol.items():
             if yahoo_symbol not in available_symbols:
+                symbols_to_recheck.append(storage_symbol)
                 continue
             if has_usable_ohlcv_rows(data[yahoo_symbol]):
                 normalized = normalize_symbol(storage_symbol)
                 if normalized is not None:
                     valid_symbols.add(normalized)
+                continue
+            symbols_to_recheck.append(storage_symbol)
 
-        missing_storage_symbols = [
-            storage_symbol
-            for yahoo_symbol, storage_symbol in yahoo_to_storage_symbol.items()
-            if yahoo_symbol not in available_symbols
-        ]
-        for storage_symbol in missing_storage_symbols:
-            normalized = self._recheck_missing_symbol(storage_symbol)
+        for storage_symbol in symbols_to_recheck:
+            normalized = self._recheck_uncertain_symbol(storage_symbol)
             if normalized is not None:
                 valid_symbols.add(normalized)
 
@@ -160,14 +159,11 @@ class YFinanceSymbolValidator:
             return data.xs(yahoo_symbol, axis=1, level=-1)
         return data
 
-    def _recheck_missing_symbol(self, storage_symbol: str) -> str | None:
+    def _recheck_uncertain_symbol(self, storage_symbol: str) -> str | None:
         yahoo_symbol = normalize_symbol_for_yahoo(storage_symbol)
-        for attempt in range(1, self._max_retries + 1):
-            data = self._download_batch(yahoo_symbol)
-            if has_usable_ohlcv_rows(self._extract_symbol_data(data, yahoo_symbol)):
-                normalized = normalize_symbol(storage_symbol)
-                if normalized is not None:
-                    return normalized
-            if attempt != self._max_retries:
-                time.sleep(self._retry_backoff_seconds * attempt)
+        data = self._download_batch(yahoo_symbol)
+        if has_usable_ohlcv_rows(self._extract_symbol_data(data, yahoo_symbol)):
+            normalized = normalize_symbol(storage_symbol)
+            if normalized is not None:
+                return normalized
         return None
