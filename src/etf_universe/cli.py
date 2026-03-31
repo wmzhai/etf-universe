@@ -55,6 +55,9 @@ def run_holdings_fetch(args: argparse.Namespace) -> int:
     playwright = None
     browser = None
     page = None
+    primary_error: Exception | None = None
+    primary_traceback = None
+    cleanup_error: Exception | None = None
 
     try:
         if any(spec.provider == "invesco" for spec in specs):
@@ -83,10 +86,28 @@ def run_holdings_fetch(args: argparse.Namespace) -> int:
                 f"{spec.symbol}: kept={meta.normalizedRowCount} dropped={meta.droppedRowCount} "
                 f"as_of={meta.asOfDate} provider={spec.issuer}"
             )
+    except Exception as exc:
+        primary_error = exc
+        primary_traceback = exc.__traceback__
     finally:
         if browser is not None and playwright is not None:
-            close_browser(playwright, browser)
-        session.close()
+            try:
+                close_browser(playwright, browser)
+            except Exception as exc:
+                if cleanup_error is None:
+                    cleanup_error = exc
+        try:
+            session.close()
+        except Exception as exc:
+            if cleanup_error is None:
+                cleanup_error = exc
+
+    if primary_error is not None:
+        if cleanup_error is not None:
+            primary_error.add_note(f"Suppressed cleanup error: {cleanup_error!r}")
+        raise primary_error.with_traceback(primary_traceback)
+    if cleanup_error is not None:
+        raise cleanup_error
 
     return 0
 
