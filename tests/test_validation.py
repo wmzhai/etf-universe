@@ -99,6 +99,34 @@ def test_validate_symbols_handles_single_symbol_download_shape(monkeypatch) -> N
     assert len(calls) == 1
 
 
+def test_validate_symbols_handles_single_symbol_multiindex_download_shape(monkeypatch) -> None:
+    calls: list[tuple[object, dict]] = []
+
+    def fake_download(symbols, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((symbols, kwargs))
+        assert symbols == "BRK-B"
+        return pd.concat(
+            {
+                "BRK-B": _make_ohlcv_frame(
+                    open_value=500.0,
+                    high_value=505.0,
+                    low_value=499.0,
+                    close_value=503.0,
+                    volume_value=1000.0,
+                )
+            },
+            axis=1,
+        )
+
+    monkeypatch.setattr("etf_universe.validation.yfinance.download", fake_download)
+    validator = YFinanceSymbolValidator()
+
+    valid_symbols = validator.validate_symbols(["brk.b"])
+
+    assert valid_symbols == {"BRK.B"}
+    assert len(calls) == 1
+
+
 def test_validate_symbols_splits_large_inputs_into_batches(monkeypatch) -> None:
     call_symbols: list[object] = []
 

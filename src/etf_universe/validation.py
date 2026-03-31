@@ -91,7 +91,14 @@ class YFinanceSymbolValidator:
 
         valid_symbols: set[str] = set()
         if len(download_symbols) == 1:
-            if has_usable_ohlcv_rows(data):
+            yahoo_symbol = download_symbols[0]
+            symbol_data: Any = data
+            if isinstance(data, pd.DataFrame) and isinstance(data.columns, pd.MultiIndex):
+                if yahoo_symbol in set(data.columns.get_level_values(0)):
+                    symbol_data = data[yahoo_symbol]
+                elif yahoo_symbol in set(data.columns.get_level_values(-1)):
+                    symbol_data = data.xs(yahoo_symbol, axis=1, level=-1)
+            if has_usable_ohlcv_rows(symbol_data):
                 storage_symbol = yahoo_to_storage_symbol[download_symbols[0]]
                 normalized = normalize_symbol(storage_symbol)
                 if normalized is not None:
