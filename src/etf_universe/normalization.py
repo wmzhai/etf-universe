@@ -5,18 +5,21 @@ import re
 from datetime import date, datetime, timezone
 from typing import Any
 
-from etf_universe.contracts import FetchResult, HoldingsMeta, NormalizedHoldingRow, EtfSpec
+from etf_universe.contracts import FetchResult, HoldingsMeta, NormalizedHoldingRow, EtfSpec, SourceHoldingRow
 
 
 META_SCHEMA_VERSION = "2026-03-31.etf-universe-meta.v1"
 ALLOWED_EQUITY_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)*$")
+PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "na", "nan", "none", "null"})
+CASH_LIKE_FIELD_TERMS = ("cash", "cash equivalent", "currency", "money market")
+NON_HOLDING_NAME_TERMS = ("cash and other", "cash position", "other assets", "other liabilities")
 
 
 def clean_text(value: Any) -> str | None:
     if value is None:
         return None
     text = html.unescape(str(value)).strip()
-    if not text or text in {"-", "--", "—", "N/A", "nan", "None"}:
+    if not text or text.casefold() in PLACEHOLDER_TEXT_VALUES:
         return None
     return text
 
@@ -68,9 +71,29 @@ def is_supported_equity_symbol(symbol: str) -> bool:
     return bool(ALLOWED_EQUITY_SYMBOL_PATTERN.fullmatch(symbol))
 
 
+def is_locally_eligible_holding_row(row: SourceHoldingRow) -> bool:
+    for value in (row.asset_class, row.security_type):
+        text = clean_text(value)
+        if text is None:
+            continue
+        lowered = text.casefold()
+        if any(term in lowered for term in CASH_LIKE_FIELD_TERMS):
+            return False
+
+    name = clean_text(row.constituent_name)
+    if name is not None:
+        lowered_name = name.casefold()
+        if any(term in lowered_name for term in NON_HOLDING_NAME_TERMS):
+            return False
+
+    return True
+
+
 def collect_candidate_symbols(fetch_result: FetchResult) -> list[str]:
     symbols: list[str] = []
     for row in fetch_result.rows:
+        if not is_locally_eligible_holding_row(row):
+            continue
         normalized_symbol = normalize_symbol(row.constituent_symbol)
         if normalized_symbol is None:
             continue
@@ -90,6 +113,9 @@ def normalize_for_storage(
     dropped_row_count = 0
 
     for row in fetch_result.rows:
+        if not is_locally_eligible_holding_row(row):
+            dropped_row_count += 1
+            continue
         normalized_symbol = normalize_symbol(row.constituent_symbol)
         if normalized_symbol is None:
             dropped_row_count += 1
