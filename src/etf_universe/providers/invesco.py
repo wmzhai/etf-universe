@@ -87,17 +87,39 @@ def fetch_invesco(spec: EtfSpec, page: Page) -> FetchResult:
 
 def launch_browser() -> tuple[Any, Browser, Page]:
     playwright = sync_playwright().start()
+    browser: Browser | None = None
     try:
         try:
             browser = playwright.chromium.launch(channel="chrome", headless=True)
         except Exception:
             browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page()
+        return playwright, browser, page
     except Exception:
-        playwright.stop()
+        if browser is not None:
+            try:
+                browser.close()
+            except Exception:
+                pass
+        try:
+            playwright.stop()
+        except Exception:
+            pass
         raise
-    return playwright, browser, browser.new_page()
 
 
 def close_browser(playwright: Any, browser: Browser) -> None:
-    browser.close()
-    playwright.stop()
+    close_error: Exception | None = None
+    try:
+        browser.close()
+    except Exception as exc:
+        close_error = exc
+
+    try:
+        playwright.stop()
+    except Exception:
+        if close_error is None:
+            raise
+
+    if close_error is not None:
+        raise close_error
