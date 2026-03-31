@@ -110,10 +110,8 @@ class YFinanceSymbolValidator:
                 valid_symbols.add(normalized)
             return valid_symbols
 
-        if not isinstance(data, pd.DataFrame) or data.empty:
-            return valid_symbols
-        if not isinstance(data.columns, pd.MultiIndex):
-            return valid_symbols
+        if not isinstance(data, pd.DataFrame) or data.empty or not isinstance(data.columns, pd.MultiIndex):
+            return self._recheck_uncertain_symbols(list(yahoo_to_storage_symbol.values()))
 
         available_symbols = set(data.columns.get_level_values(0))
         symbols_to_recheck: list[str] = []
@@ -175,3 +173,11 @@ class YFinanceSymbolValidator:
             if attempt != recheck_attempts:
                 time.sleep(self._retry_backoff_seconds * attempt)
         return None
+
+    def _recheck_uncertain_symbols(self, storage_symbols: list[str]) -> set[str]:
+        valid_symbols: set[str] = set()
+        for storage_symbol in storage_symbols:
+            normalized = self._recheck_uncertain_symbol(storage_symbol)
+            if normalized is not None:
+                valid_symbols.add(normalized)
+        return valid_symbols

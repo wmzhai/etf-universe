@@ -392,3 +392,56 @@ def test_validate_symbols_retries_uncertain_symbol_rechecks(monkeypatch) -> None
 
     assert valid_symbols == {"AAPL", "MSFT"}
     assert calls == [["AAPL", "MSFT"], "MSFT", "MSFT"]
+
+
+def test_validate_symbols_rechecks_all_symbols_when_batch_frame_is_empty(monkeypatch) -> None:
+    calls: list[object] = []
+
+    def fake_download(symbols, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append(symbols)
+        assert kwargs["threads"] is False
+        if symbols == ["AAPL", "MSFT"]:
+            return pd.concat(
+                {
+                    "AAPL": _make_ohlcv_frame(
+                        open_value=math.nan,
+                        high_value=math.nan,
+                        low_value=math.nan,
+                        close_value=math.nan,
+                        volume_value=math.nan,
+                    ),
+                    "MSFT": _make_ohlcv_frame(
+                        open_value=math.nan,
+                        high_value=math.nan,
+                        low_value=math.nan,
+                        close_value=math.nan,
+                        volume_value=math.nan,
+                    ),
+                },
+                axis=1,
+            )
+        if symbols == "AAPL":
+            return _make_ohlcv_frame(
+                open_value=200.0,
+                high_value=201.0,
+                low_value=198.0,
+                close_value=199.0,
+                volume_value=5000.0,
+            )
+        if symbols == "MSFT":
+            return _make_ohlcv_frame(
+                open_value=400.0,
+                high_value=401.0,
+                low_value=398.0,
+                close_value=399.0,
+                volume_value=3000.0,
+            )
+        raise AssertionError(f"unexpected symbols: {symbols!r}")
+
+    monkeypatch.setattr("etf_universe.validation.yfinance.download", fake_download)
+    validator = YFinanceSymbolValidator(batch_size=2)
+
+    valid_symbols = validator.validate_symbols(["AAPL", "MSFT"])
+
+    assert valid_symbols == {"AAPL", "MSFT"}
+    assert calls == [["AAPL", "MSFT"], "AAPL", "MSFT"]
