@@ -4,7 +4,7 @@
 
 **Goal:** Build `etf-universe` as a standalone Python package managed with `uv` that exposes a stable CLI for listing supported ETFs and fetching holdings snapshots for a curated ETF subset into parquet plus JSON metadata outputs.
 
-**Architecture:** Split the package into a thin CLI, a registry layer, normalization and storage helpers, Alpaca-based symbol validation, and provider-specific fetch modules. Keep the CLI as the only public interface for v1 so agents and humans all use the same entry point.
+**Architecture:** Split the package into a thin CLI, a registry layer, normalization and storage helpers, batched `yfinance`-based symbol validation, and provider-specific fetch modules. Keep the CLI as the only public interface for v1 so agents and humans all use the same entry point.
 
 **Tech Stack:** Python 3.12, `uv`, `requests`, `beautifulsoup4`, `openpyxl`, `pyarrow`, `playwright`, `pytest`
 
@@ -706,9 +706,10 @@ git add src/etf_universe/storage.py tests/test_storage.py
 git commit -m "feat: add parquet and metadata storage"
 ```
 
-### Task 4: Add Alpaca-backed symbol validation
+### Task 4: Add yfinance-backed symbol validation
 
 **Files:**
+- Modify: `pyproject.toml`
 - Create: `src/etf_universe/validation.py`
 - Test: `tests/test_validation.py`
 
@@ -716,110 +717,104 @@ git commit -m "feat: add parquet and metadata storage"
 
 ```python
 # tests/test_validation.py
-import requests
+import pandas as pd
 
-from etf_universe.validation import AlpacaDataSymbolValidator
-
-
-class FakeResponse:
-    def __init__(self, status_code: int, payload: dict[str, object]) -> None:
-        self.status_code = status_code
-        self._payload = payload
-        self.text = ""
-
-    def json(self) -> dict[str, object]:
-        return self._payload
-
-    def raise_for_status(self) -> None:
-        if self.status_code >= 400:
-            raise requests.HTTPError(f"{self.status_code}: {self._payload}")
+from etf_universe.validation import YFinanceSymbolValidator, normalize_symbol_for_yahoo
 
 
-class FakeSession:
-    def __init__(self, responses: list[FakeResponse]) -> None:
-        self._responses = list(responses)
-        self.calls: list[dict[str, object]] = []
-
-    def get(self, url: str, **kwargs):  # noqa: ANN003
-        self.calls.append(
-            {
-                "url": url,
-                "params": kwargs.get("params"),
-                "headers": kwargs.get("headers"),
-            }
-        )
-        if not self._responses:
-            raise AssertionError("unexpected extra GET call")
-        return self._responses.pop(0)
+def make_batch_frame(payload_by_symbol: dict[str, list[dict[str, float]]]) -> pd.DataFrame:
+    return pd.concat(
+        {symbol: pd.DataFrame(rows) for symbol, rows in payload_by_symbol.items()},
+        axis=1,
+    )
 
 
-def test_keeps_only_symbols_present_in_quotes_payload() -> None:
-    session = FakeSession(
-        [
-            FakeResponse(
-                200,
+def test_normalize_symbol_for_yahoo_rewrites_share_class() -> None:
+    assert normalize_symbol_for_yahoo("BRK.B") == "BRK-B"
+    assert normalize_symbol_for_yahoo("AAPL") == "AAPL"
+
+
+def test_validator_keeps_symbols_with_real_ohlcv_data(monkeypatch) -> None:
+    download_frame = make_batch_frame(
+        {
+            "AAPL": [
+                {"Open": 1.0, "High": 1.1, "Low": 0.9, "Close": 1.05, "Volume": 100.0}
+            ],
+            "BRK-B": [
+                {"Open": 2.0, "High": 2.1, "Low": 1.9, "Close": 2.05, "Volume": 200.0}
+            ],
+            "INVALIDZZZZ": [
                 {
-                    "quotes": {
-                        "AAPL": {"bp": 1},
-                        "NVDA": {"bp": 2},
-                    }
-                },
-            )
-        ]
-    )
-    validator = AlpacaDataSymbolValidator(
-        session=session,
-        api_key="key",
-        secret_key="secret",
-        base_url="https://data.alpaca.markets",
+                    "Open": float("nan"),
+                    "High": float("nan"),
+                    "Low": float("nan"),
+                    "Close": float("nan"),
+                    "Volume": float("nan"),
+                }
+            ],
+        }
     )
 
-    valid_symbols = validator.validate_symbols(["AAPL", "HEIA", "NVDA"])
-
-    assert valid_symbols == {"AAPL", "NVDA"}
-
-
-def test_removes_invalid_symbol_and_retries_remaining_batch() -> None:
-    session = FakeSession(
-        [
-            FakeResponse(400, {"message": "code=400, message=invalid symbol: IXAM6"}),
-            FakeResponse(
-                200,
-                {
-                    "quotes": {
-                        "AAPL": {"bp": 1},
-                        "NVDA": {"bp": 2},
-                    }
-                },
-            ),
-        ]
-    )
-    validator = AlpacaDataSymbolValidator(
-        session=session,
-        api_key="key",
-        secret_key="secret",
-        base_url="https://data.alpaca.markets",
+    monkeypatch.setattr(
+        "etf_universe.validation.yf.download",
+        lambda *args, **kwargs: download_frame,
     )
 
-    valid_symbols = validator.validate_symbols(["AAPL", "IXAM6", "NVDA"])
-
-    assert valid_symbols == {"AAPL", "NVDA"}
-    assert len(session.calls) == 2
-
-
-def test_disabled_validator_returns_all_symbols_without_network() -> None:
-    session = FakeSession([])
-    validator = AlpacaDataSymbolValidator(
-        session=session,
-        api_key=None,
-        secret_key=None,
-        base_url=None,
-    )
-
-    valid_symbols = validator.validate_symbols(["AAPL", "BRK.B"])
+    validator = YFinanceSymbolValidator(batch_size=50)
+    valid_symbols = validator.validate_symbols(["AAPL", "BRK.B", "INVALIDZZZZ"])
 
     assert valid_symbols == {"AAPL", "BRK.B"}
-    assert session.calls == []
+
+
+def test_validator_handles_single_symbol_download_shape(monkeypatch) -> None:
+    download_frame = pd.DataFrame(
+        [
+            {"Open": 2.0, "High": 2.1, "Low": 1.9, "Close": 2.05, "Volume": 200.0}
+        ]
+    )
+
+    monkeypatch.setattr(
+        "etf_universe.validation.yf.download",
+        lambda *args, **kwargs: download_frame,
+    )
+
+    validator = YFinanceSymbolValidator(batch_size=50)
+    valid_symbols = validator.validate_symbols(["BRK.B"])
+
+    assert valid_symbols == {"BRK.B"}
+
+
+def test_validator_splits_large_symbol_sets_into_batches(monkeypatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_download(symbols, **kwargs):  # noqa: ANN001
+        if isinstance(symbols, str):
+            requested = [symbols]
+        else:
+            requested = list(symbols)
+        calls.append(requested)
+
+        if len(requested) == 1:
+            return pd.DataFrame(
+                [{"Open": 1.0, "High": 1.1, "Low": 0.9, "Close": 1.05, "Volume": 100.0}]
+            )
+
+        return make_batch_frame(
+            {
+                symbol: [
+                    {"Open": 1.0, "High": 1.1, "Low": 0.9, "Close": 1.05, "Volume": 100.0}
+                ]
+                for symbol in requested
+            }
+        )
+
+    monkeypatch.setattr("etf_universe.validation.yf.download", fake_download)
+
+    validator = YFinanceSymbolValidator(batch_size=2)
+    valid_symbols = validator.validate_symbols(["AAPL", "MSFT", "NVDA"])
+
+    assert valid_symbols == {"AAPL", "MSFT", "NVDA"}
+    assert calls == [["AAPL", "MSFT"], ["NVDA"]]
 ```
 
 - [ ] **Step 2: Run the validation tests to confirm the validator module is missing**
@@ -836,25 +831,31 @@ Expected:
 
 - [ ] **Step 3: Implement the validator and helpers**
 
+```toml
+# pyproject.toml
+dependencies = [
+  "beautifulsoup4>=4.12.3",
+  "openpyxl>=3.1.5",
+  "pandas>=3.0.2",
+  "playwright>=1.52.0",
+  "pyarrow>=20.0.0",
+  "requests>=2.32.3",
+  "yfinance>=1.2.0",
+]
+```
+
 ```python
 # src/etf_universe/validation.py
 from __future__ import annotations
 
-import json
-import re
+import yfinance as yf
 
-import requests
+YFINANCE_VALIDATION_PERIOD = "5d"
+YFINANCE_VALIDATION_INTERVAL = "1d"
+YFINANCE_SYMBOL_BATCH_SIZE = 100
+YFINANCE_REQUIRED_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
 
-from etf_universe.normalization import clean_text, normalize_symbol
-
-
-HTTP_TIMEOUT = 60
-DEFAULT_ALPACA_DATA_BASE_URL = "https://data.alpaca.markets"
-ALPACA_SYMBOL_BATCH_SIZE = 100
-INVALID_SYMBOL_MESSAGE_PATTERN = re.compile(
-    r"invalid symbol:\s*([A-Z][A-Z0-9.]*)",
-    re.IGNORECASE,
-)
+from etf_universe.normalization import normalize_symbol
 
 
 def dedupe_symbols(symbols: list[str]) -> list[str]:
@@ -875,106 +876,76 @@ def chunk_symbols(symbols: list[str], batch_size: int) -> list[list[str]]:
     ]
 
 
-def extract_error_message(response: requests.Response) -> str:
+def normalize_symbol_for_yahoo(symbol: str) -> str:
+    return symbol.replace(".", "-")
+
+
+def has_usable_ohlcv_rows(data) -> bool:  # noqa: ANN001
+    if data.empty:
+        return False
+
     try:
-        payload = response.json()
-    except ValueError:
-        return response.text.strip()
+        ohlcv = data[list(YFINANCE_REQUIRED_COLUMNS)]
+    except KeyError:
+        return False
 
-    if isinstance(payload, dict) and isinstance(payload.get("message"), str):
-        return payload["message"]
+    if ohlcv.dropna(how="all").empty:
+        return False
 
-    return json.dumps(payload)
+    if ohlcv["Close"].dropna().empty and ohlcv["Volume"].dropna().empty:
+        return False
 
-
-def parse_invalid_symbol_from_message(message: str) -> str | None:
-    match = INVALID_SYMBOL_MESSAGE_PATTERN.search(message)
-    if not match:
-        return None
-    return normalize_symbol(match.group(1))
+    return True
 
 
-class AlpacaDataSymbolValidator:
-    def __init__(
-        self,
-        session: requests.Session,
-        api_key: str | None,
-        secret_key: str | None,
-        base_url: str | None,
-    ) -> None:
-        self._session = session
-        self._api_key = clean_text(api_key)
-        self._secret_key = clean_text(secret_key)
-        self._base_url = (clean_text(base_url) or DEFAULT_ALPACA_DATA_BASE_URL).rstrip("/")
+class YFinanceSymbolValidator:
+    def __init__(self, batch_size: int = YFINANCE_SYMBOL_BATCH_SIZE) -> None:
+        self._batch_size = batch_size
         self._cache: dict[str, bool] = {}
 
     @property
     def enabled(self) -> bool:
-        return bool(self._api_key and self._secret_key)
+        return True
 
     def validate_symbols(self, symbols: list[str]) -> set[str]:
         deduped_symbols = dedupe_symbols(symbols)
-        if not self.enabled:
-            for symbol in deduped_symbols:
-                self._cache[symbol] = True
-            return set(deduped_symbols)
-
         valid_symbols: set[str] = set()
-        for batch in chunk_symbols(deduped_symbols, ALPACA_SYMBOL_BATCH_SIZE):
+        for batch in chunk_symbols(deduped_symbols, self._batch_size):
             valid_symbols.update(self._validate_batch(batch))
         return valid_symbols
 
     def _validate_batch(self, symbols: list[str]) -> set[str]:
-        remaining = list(symbols)
+        yahoo_symbols = [normalize_symbol_for_yahoo(symbol) for symbol in symbols]
+        download_frame = yf.download(
+            yahoo_symbols if len(yahoo_symbols) > 1 else yahoo_symbols[0],
+            period=YFINANCE_VALIDATION_PERIOD,
+            interval=YFINANCE_VALIDATION_INTERVAL,
+            group_by="ticker",
+            auto_adjust=False,
+            progress=False,
+            threads=True,
+        )
 
-        while remaining:
-            response = self._session.get(
-                f"{self._base_url}/v2/stocks/quotes/latest",
-                headers={
-                    "APCA-API-KEY-ID": self._api_key or "",
-                    "APCA-API-SECRET-KEY": self._secret_key or "",
-                },
-                params={
-                    "symbols": ",".join(remaining),
-                    "feed": "sip",
-                },
-                timeout=HTTP_TIMEOUT,
-            )
+        valid_symbols: set[str] = set()
+        for original_symbol, yahoo_symbol in zip(symbols, yahoo_symbols):
+            try:
+                data = download_frame if len(yahoo_symbols) == 1 else download_frame[yahoo_symbol]
+            except Exception:
+                self._cache[original_symbol] = False
+                continue
 
-            if response.status_code == 200:
-                payload = response.json()
-                quote_symbols = {
-                    normalize_symbol(symbol)
-                    for symbol in payload.get("quotes", {}).keys()
-                }
-                valid_symbols = {
-                    symbol for symbol in remaining if symbol in quote_symbols
-                }
-                invalid_symbols = {
-                    symbol for symbol in remaining if symbol not in valid_symbols
-                }
+            normalized_symbol = normalize_symbol(original_symbol)
+            if normalized_symbol is None:
+                self._cache[original_symbol] = False
+                continue
 
-                for symbol in valid_symbols:
-                    self._cache[symbol] = True
-                for symbol in invalid_symbols:
-                    self._cache[symbol] = False
+            if has_usable_ohlcv_rows(data):
+                self._cache[original_symbol] = True
+                valid_symbols.add(normalized_symbol)
+            else:
+                self._cache[original_symbol] = False
 
-                return valid_symbols
-
-            if response.status_code not in {400, 404}:
-                response.raise_for_status()
-
-            message = extract_error_message(response)
-            invalid_symbol = parse_invalid_symbol_from_message(message)
-            if invalid_symbol is None or invalid_symbol not in remaining:
-                raise ValueError(
-                    f"unable to isolate invalid symbol from Alpaca response: {message}"
-                )
-
-            self._cache[invalid_symbol] = False
-            remaining = [symbol for symbol in remaining if symbol != invalid_symbol]
-
-        return set()
+        return valid_symbols
 ```
 
 - [ ] **Step 4: Run the validator tests to verify the retry logic**
@@ -992,8 +963,8 @@ Expected:
 - [ ] **Step 5: Commit the validator**
 
 ```bash
-git add src/etf_universe/validation.py tests/test_validation.py
-git commit -m "feat: add alpaca symbol validation"
+git add pyproject.toml src/etf_universe/validation.py tests/test_validation.py
+git commit -m "feat: add yfinance symbol validation"
 ```
 
 ### Task 5: Implement shared provider helpers plus SSGA and iShares fetchers
@@ -1750,7 +1721,6 @@ def fetch_with_provider(spec: EtfSpec, session, page=None) -> FetchResult:  # no
 from __future__ import annotations
 
 import argparse
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -1758,7 +1728,7 @@ from etf_universe.normalization import collect_candidate_symbols, normalize_for_
 from etf_universe.providers import close_browser, fetch_with_provider, launch_browser, make_session
 from etf_universe.registry import get_specs, list_supported_symbols, parse_symbols_arg
 from etf_universe.storage import write_meta, write_parquet
-from etf_universe.validation import AlpacaDataSymbolValidator
+from etf_universe.validation import YFinanceSymbolValidator
 
 
 DEFAULT_OUTPUT_DIR = Path("data/etf-holdings")
@@ -1786,13 +1756,9 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def build_symbol_validator(session) -> AlpacaDataSymbolValidator:  # noqa: ANN001
-    return AlpacaDataSymbolValidator(
-        session=session,
-        api_key=os.environ.get("ALPACA_DATA_API_KEY"),
-        secret_key=os.environ.get("ALPACA_DATA_SECRET_KEY"),
-        base_url=os.environ.get("ALPACA_DATA_BASE_URL"),
-    )
+def build_symbol_validator(session) -> YFinanceSymbolValidator:  # noqa: ANN001
+    del session
+    return YFinanceSymbolValidator()
 
 
 def run_holdings_list_supported(args: argparse.Namespace) -> int:
@@ -1815,12 +1781,6 @@ def run_holdings_fetch(args: argparse.Namespace) -> int:
     page = None
     fetched_results = {}
     candidate_symbols: list[str] = []
-
-    if not validator.enabled:
-        print(
-            "warning: Alpaca data validation disabled; unsupported symbols may remain in holdings output",
-            flush=True,
-        )
 
     try:
         if any(spec.provider == "invesco" for spec in specs):
@@ -2027,17 +1987,14 @@ Metadata fields:
 - `normalizedRowCount`
 - `droppedRowCount`
 
-## Environment Variables
+## Symbol Validation
 
-Optional Alpaca validation:
+`etf-universe` uses batched `yfinance` downloads for symbol validation in version 1.
 
-```bash
-export ALPACA_DATA_API_KEY=...
-export ALPACA_DATA_SECRET_KEY=...
-export ALPACA_DATA_BASE_URL=https://data.alpaca.markets
-```
-
-If Alpaca credentials are not configured, the CLI will warn and continue without remote symbol validation.
+- No API key is required
+- Dot-form share classes such as `BRK.B` are translated to Yahoo-compatible dash form such as `BRK-B` only for validation
+- Stored holdings output remains in normalized dot form
+- Validation runs in batches to reduce rate limiting risk
 
 ## Development
 
@@ -2089,7 +2046,7 @@ git commit -m "docs: add public package documentation"
   - Python package with `uv`: covered in Task 1 and Task 8
   - Curated ETF registry: covered in Task 1
   - Shared output contract: covered in Tasks 2 and 3
-  - Alpaca validation: covered in Task 4
+  - yfinance validation: covered in Task 4
   - Provider-specific fetchers: covered in Tasks 5 and 6
   - Public CLI for `list-supported` and `fetch`: covered in Tasks 1 and 7
   - English-only docs and commit messages: covered in Task 8
@@ -2099,7 +2056,7 @@ git commit -m "docs: add public package documentation"
 
 - Type consistency:
   - `EtfSpec`, `FetchResult`, `SourceHoldingRow`, `NormalizedHoldingRow`, and `HoldingsMeta` are named consistently across all tasks
-  - `parse_symbols_arg`, `list_supported_symbols`, `normalize_for_storage`, `write_parquet`, `write_meta`, and `AlpacaDataSymbolValidator` retain consistent names through the full plan
+  - `parse_symbols_arg`, `list_supported_symbols`, `normalize_for_storage`, `write_parquet`, `write_meta`, and `YFinanceSymbolValidator` retain consistent names through the full plan
 
 ## Execution Handoff
 

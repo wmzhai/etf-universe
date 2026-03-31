@@ -90,7 +90,7 @@ Behavior:
 - Reject unknown ETF symbols before any network work begins
 - Fetch all requested ETFs
 - Normalize holdings rows into a shared contract
-- Optionally validate candidate equity symbols against Alpaca market data
+- Validate candidate equity symbols with batched `yfinance` downloads
 - Write one parquet file and one metadata file per ETF
 - Print one summary line per ETF
 
@@ -135,15 +135,19 @@ Version 1 only keeps the latest snapshot per ETF in the selected output director
 
 ## Symbol Validation
 
-Version 1 keeps the current Alpaca-based validation behavior from the internal implementation:
+Version 1 uses batched `yfinance` downloads instead of Alpaca credentials:
 
 - Filter candidate symbols locally by allowed format
 - Deduplicate symbols across all fetched ETFs in the current run
-- Validate candidates in batches with Alpaca latest quotes
-- Drop symbols rejected as invalid by Alpaca
-- Drop symbols missing from the quotes map in a successful response
+- Convert dot-form share classes such as `BRK.B` to Yahoo-compatible dash form such as `BRK-B` only for the remote validation request
+- Validate candidates in batches with `yfinance.download(...)`
+- Use `period="5d"` and `interval="1d"` to reduce false negatives from single-day trading gaps
+- Treat a symbol as valid only when its per-symbol OHLCV frame is not empty, contains at least one non-all-`NaN` OHLCV row, and has at least one valid `Close` or `Volume` value
+- Treat symbols with all-`NaN` OHLCV results as invalid
+- Convert back to the original normalized dot form for internal storage and output
+- Execute validation in bounded batches to avoid rate limiting
 
-Validation must be optional at runtime so the package still works when Alpaca credentials are not configured. In that case, the CLI should emit a warning and continue without remote symbol validation.
+Validation in v1 does not require API credentials or symbol-validation environment variables.
 
 ## Provider Strategy
 
@@ -212,7 +216,7 @@ src/etf_universe/
 - `storage.py`
   - Parquet and metadata writing
 - `validation.py`
-  - Alpaca symbol validation
+  - Batched `yfinance` symbol validation
 - `providers/*.py`
   - Provider-specific HTTP or browser fetch logic
 - `cli.py`
@@ -227,6 +231,7 @@ Use `uv` for environment management, dependency installation, command execution,
 Core dependencies:
 
 - `requests`
+- `yfinance`
 - `beautifulsoup4`
 - `openpyxl`
 - `pyarrow`
@@ -243,7 +248,7 @@ The README must be in English and include:
 - Installation with `uv`
 - CLI examples
 - Output schema
-- Required and optional environment variables
+- Validation behavior and browser/runtime requirements
 - Provider notes and current limitations
 
 ## Testing Strategy
@@ -254,7 +259,7 @@ Required test categories:
 
 - Registry tests
 - Normalization tests
-- Alpaca validation tests
+- yfinance validation tests
 - Provider parser tests
 - CLI tests
 
@@ -268,7 +273,7 @@ Migration goals:
 
 - Preserve supported ETFs and provider routing
 - Preserve the current output contract
-- Preserve the current Alpaca validation behavior
+- Preserve the current symbol-validation intent while removing the Alpaca credential dependency
 - Replace the monolithic script layout with a reusable package layout
 - Remove direct coupling to `wyckoff` language and repository assumptions
 
