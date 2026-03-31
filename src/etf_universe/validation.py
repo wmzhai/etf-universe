@@ -161,9 +161,13 @@ class YFinanceSymbolValidator:
 
     def _recheck_uncertain_symbol(self, storage_symbol: str) -> str | None:
         yahoo_symbol = normalize_symbol_for_yahoo(storage_symbol)
-        data = self._download_batch(yahoo_symbol)
-        if has_usable_ohlcv_rows(self._extract_symbol_data(data, yahoo_symbol)):
-            normalized = normalize_symbol(storage_symbol)
-            if normalized is not None:
-                return normalized
+        recheck_attempts = max(1, self._max_retries - 1)
+        for attempt in range(1, recheck_attempts + 1):
+            data = self._download_batch(yahoo_symbol)
+            if has_usable_ohlcv_rows(self._extract_symbol_data(data, yahoo_symbol)):
+                normalized = normalize_symbol(storage_symbol)
+                if normalized is not None:
+                    return normalized
+            if attempt != recheck_attempts:
+                time.sleep(self._retry_backoff_seconds * attempt)
         return None
