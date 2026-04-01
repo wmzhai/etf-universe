@@ -7,7 +7,7 @@ from urllib.parse import parse_qs, urlparse
 
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date
-from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row
+from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
 def extract_dataset_url(html_text: str, symbol: str) -> str:
@@ -50,10 +50,10 @@ def parse_vaneck_payload(payload: dict[str, Any], source_url: str) -> FetchResul
 
 
 def fetch_vaneck(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
-    page_response = session.get(spec.source_url, timeout=HTTP_TIMEOUT)
+    page_response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
     page_response.raise_for_status()
     dataset_url = extract_dataset_url(page_response.text, spec.symbol)
 
-    dataset_response = session.get(dataset_url, timeout=HTTP_TIMEOUT)
+    dataset_response = request_with_logging(session, "GET", dataset_url, timeout=HTTP_TIMEOUT)
     dataset_response.raise_for_status()
     return parse_vaneck_payload(dataset_response.json(), dataset_url)

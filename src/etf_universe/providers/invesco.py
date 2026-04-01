@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from playwright.sync_api import Browser, Page, sync_playwright
@@ -8,15 +9,25 @@ from playwright.sync_api import Browser, Page, sync_playwright
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date
 from etf_universe.providers.base import build_source_row
+from etf_universe.runtime_logging import elapsed_ms, log_event
 
 
 def browser_fetch_json(page: Page, api_url: str) -> dict[str, Any]:
+    log_event("browser.request", url=api_url)
+    started_at = time.perf_counter()
     result = page.evaluate(
         """async (url) => {
             const response = await fetch(url.replace(/&amp;/g, '&'));
             return { status: response.status, text: await response.text() };
         }""",
         api_url,
+    )
+    log_event(
+        "browser.response",
+        url=api_url.replace("&amp;", "&"),
+        status=result["status"],
+        bytes=len(result["text"].encode("utf-8")),
+        elapsed_ms=elapsed_ms(started_at),
     )
     if result["status"] != 200:
         raise ValueError(f"Browser fetch failed: {result['status']} {api_url}")
@@ -62,7 +73,17 @@ def parse_invesco_payload(payload: dict[str, Any], source_url: str) -> FetchResu
 
 
 def fetch_invesco(spec: EtfSpec, page: Page) -> FetchResult:
-    page.goto(spec.source_url, wait_until="domcontentloaded", timeout=120000)
+    log_event("browser.goto.start", etf=spec.symbol, url=spec.source_url)
+    started_at = time.perf_counter()
+    page_response = page.goto(spec.source_url, wait_until="domcontentloaded", timeout=120000)
+    page_status = getattr(page_response, "status", None)
+    log_event(
+        "browser.goto.done",
+        etf=spec.symbol,
+        url=spec.source_url,
+        status=page_status if page_status is not None else "unknown",
+        elapsed_ms=elapsed_ms(started_at),
+    )
 
     if spec.symbol == "QQQ":
         locator = page.locator("[data-holding-api]").first

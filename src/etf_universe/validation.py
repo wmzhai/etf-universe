@@ -1,21 +1,33 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+import json
+import re
+import threading
 import time
 from typing import Any
 
-import pandas as pd
-import yfinance
+import requests
 
 from etf_universe.normalization import normalize_symbol
+from etf_universe.runtime_logging import elapsed_ms, log_event
 
 
-YFINANCE_VALIDATION_PERIOD = "5d"
-YFINANCE_VALIDATION_INTERVAL = "1d"
-YFINANCE_SYMBOL_BATCH_SIZE = 50
-YFINANCE_MAX_RETRIES = 3
-YFINANCE_RETRY_BACKOFF_SECONDS = 2.0
-YFINANCE_REQUIRED_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
+HTTP_TIMEOUT = 60
+DEFAULT_ALPACA_DATA_BASE_URL = "https://data.alpaca.markets"
+ALPACA_SYMBOL_BATCH_SIZE = 200
+ALPACA_MAX_CONCURRENT_BATCHES = 8
+INVALID_SYMBOL_MESSAGE_PATTERN = re.compile(
+    r"invalid symbol:\s*([A-Z][A-Z0-9.]*)",
+    re.IGNORECASE,
+)
+
+
+def _clean_config_value(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
 
 
 def dedupe_symbols(symbols: list[str]) -> list[str]:
@@ -35,149 +47,271 @@ def chunk_symbols(symbols: list[str], batch_size: int) -> list[list[str]]:
     return [symbols[i : i + batch_size] for i in range(0, len(symbols), batch_size)]
 
 
-def normalize_symbol_for_yahoo(symbol: str) -> str:
-    return symbol.replace(".", "-")
+def extract_error_message(response: Any) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return str(getattr(response, "text", "")).strip()
+
+    if isinstance(payload, dict) and isinstance(payload.get("message"), str):
+        return payload["message"]
+
+    return json.dumps(payload)
 
 
-def has_usable_ohlcv_rows(data: Any) -> bool:
-    if not isinstance(data, pd.DataFrame) or data.empty:
-        return False
-    if any(column not in data.columns for column in YFINANCE_REQUIRED_COLUMNS):
-        return False
-    ohlcv = data.loc[:, list(YFINANCE_REQUIRED_COLUMNS)]
-    if not (~ohlcv.isna().all(axis=1)).any():
-        return False
-    close_or_volume = data.loc[:, ["Close", "Volume"]]
-    return bool(close_or_volume.notna().any(axis=1).any())
+def parse_invalid_symbol_from_message(message: str) -> str | None:
+    match = INVALID_SYMBOL_MESSAGE_PATTERN.search(message)
+    if not match:
+        return None
+    return normalize_symbol(match.group(1))
 
 
-class YFinanceSymbolValidator:
+class AlpacaDataSymbolValidator:
     def __init__(
         self,
-        batch_size: int = YFINANCE_SYMBOL_BATCH_SIZE,
-        max_retries: int = YFINANCE_MAX_RETRIES,
-        retry_backoff_seconds: float = YFINANCE_RETRY_BACKOFF_SECONDS,
+        session: Any,
+        api_key: str | None,
+        secret_key: str | None,
+        base_url: str | None = None,
+        batch_size: int = ALPACA_SYMBOL_BATCH_SIZE,
+        max_concurrent_batches: int = ALPACA_MAX_CONCURRENT_BATCHES,
+        timeout: int = HTTP_TIMEOUT,
     ) -> None:
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
-        if max_retries <= 0:
-            raise ValueError("max_retries must be positive")
-        if retry_backoff_seconds < 0:
-            raise ValueError("retry_backoff_seconds must be non-negative")
+        if max_concurrent_batches <= 0:
+            raise ValueError("max_concurrent_batches must be positive")
+
+        self._session = session
+        self._api_key = _clean_config_value(api_key)
+        self._secret_key = _clean_config_value(secret_key)
+        self._base_url = (_clean_config_value(base_url) or DEFAULT_ALPACA_DATA_BASE_URL).rstrip("/")
         self._batch_size = batch_size
-        self._max_retries = max_retries
-        self._retry_backoff_seconds = retry_backoff_seconds
+        self._max_concurrent_batches = max_concurrent_batches
+        self._timeout = timeout
+        self._cache: dict[str, bool] = {}
+        self._cache_lock = threading.Lock()
 
     @property
     def enabled(self) -> bool:
-        return True
+        return bool(self._api_key and self._secret_key)
 
     def validate_symbols(self, symbols: list[str]) -> set[str]:
+        started_at = time.perf_counter()
         normalized_symbols = dedupe_symbols(
             [normalized for symbol in symbols if (normalized := normalize_symbol(symbol)) is not None]
         )
-        valid_symbols: set[str] = set()
-        for symbol_batch in chunk_symbols(normalized_symbols, self._batch_size):
-            valid_symbols.update(self._validate_batch(symbol_batch))
-        return valid_symbols
-
-    def _validate_batch(self, symbols: list[str]) -> set[str]:
-        if not symbols:
-            return set()
-
-        yahoo_to_storage_symbol = {
-            normalize_symbol_for_yahoo(symbol): symbol for symbol in symbols
-        }
-        download_symbols = list(yahoo_to_storage_symbol.keys())
-        download_arg: str | Iterable[str] = (
-            download_symbols[0] if len(download_symbols) == 1 else download_symbols
+        batches = chunk_symbols(normalized_symbols, self._batch_size)
+        log_event(
+            "validation.start",
+            provider="alpaca",
+            input_count=len(symbols),
+            normalized_count=len(normalized_symbols),
+            batch_count=len(batches),
+            concurrent_batches=min(self._max_concurrent_batches, len(batches)) if batches else 0,
         )
 
-        data = self._download_batch(download_arg)
+        if not self.enabled:
+            for symbol in normalized_symbols:
+                self._set_cache(symbol, True)
+            log_event(
+                "validation.disabled",
+                provider="alpaca",
+                reason="missing_credentials",
+            )
+            log_event(
+                "validation.done",
+                provider="alpaca",
+                input_count=len(symbols),
+                normalized_count=len(normalized_symbols),
+                valid_count=len(normalized_symbols),
+                elapsed_ms=elapsed_ms(started_at),
+            )
+            return set(normalized_symbols)
 
         valid_symbols: set[str] = set()
-        if len(download_symbols) == 1:
-            yahoo_symbol = download_symbols[0]
-            storage_symbol = yahoo_to_storage_symbol[download_symbols[0]]
-            symbol_data = self._extract_symbol_data(data, yahoo_symbol)
-            if has_usable_ohlcv_rows(symbol_data):
-                normalized = normalize_symbol(storage_symbol)
-                if normalized is not None:
-                    valid_symbols.add(normalized)
-                return valid_symbols
-            normalized = self._recheck_uncertain_symbol(storage_symbol)
-            if normalized is not None:
-                valid_symbols.add(normalized)
-            return valid_symbols
-
-        if not isinstance(data, pd.DataFrame) or data.empty or not isinstance(data.columns, pd.MultiIndex):
-            return self._recheck_uncertain_symbols(list(yahoo_to_storage_symbol.values()))
-
-        available_symbols = set(data.columns.get_level_values(0))
-        symbols_to_recheck: list[str] = []
-        for yahoo_symbol, storage_symbol in yahoo_to_storage_symbol.items():
-            if yahoo_symbol not in available_symbols:
-                symbols_to_recheck.append(storage_symbol)
-                continue
-            if has_usable_ohlcv_rows(data[yahoo_symbol]):
-                normalized = normalize_symbol(storage_symbol)
-                if normalized is not None:
-                    valid_symbols.add(normalized)
-                continue
-            symbols_to_recheck.append(storage_symbol)
-
-        for storage_symbol in symbols_to_recheck:
-            normalized = self._recheck_uncertain_symbol(storage_symbol)
-            if normalized is not None:
-                valid_symbols.add(normalized)
-
-        return valid_symbols
-
-    def _download_batch(self, download_arg: str | Iterable[str]) -> Any:
-        for attempt in range(1, self._max_retries + 1):
-            try:
-                return yfinance.download(
-                    download_arg,
-                    period=YFINANCE_VALIDATION_PERIOD,
-                    interval=YFINANCE_VALIDATION_INTERVAL,
-                    group_by="ticker",
-                    auto_adjust=False,
-                    progress=False,
-                    threads=False,
+        if len(batches) <= 1 or self._max_concurrent_batches == 1:
+            for batch_index, symbol_batch in enumerate(batches, start=1):
+                valid_symbols.update(
+                    self._run_batch(
+                        symbol_batch,
+                        batch_index=batch_index,
+                        batch_count=len(batches),
+                        session=self._session,
+                    )
                 )
-            except Exception:
-                if attempt == self._max_retries:
-                    raise
-                time.sleep(self._retry_backoff_seconds * attempt)
+        else:
+            max_workers = min(self._max_concurrent_batches, len(batches))
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(
+                        self._run_batch_with_worker_session,
+                        symbol_batch,
+                        batch_index,
+                        len(batches),
+                    )
+                    for batch_index, symbol_batch in enumerate(batches, start=1)
+                ]
+                for future in futures:
+                    valid_symbols.update(future.result())
 
-        raise AssertionError("unreachable")
-
-    def _extract_symbol_data(self, data: Any, yahoo_symbol: str) -> Any:
-        if not isinstance(data, pd.DataFrame) or not isinstance(data.columns, pd.MultiIndex):
-            return data
-        if yahoo_symbol in set(data.columns.get_level_values(0)):
-            return data[yahoo_symbol]
-        if yahoo_symbol in set(data.columns.get_level_values(-1)):
-            return data.xs(yahoo_symbol, axis=1, level=-1)
-        return data
-
-    def _recheck_uncertain_symbol(self, storage_symbol: str) -> str | None:
-        yahoo_symbol = normalize_symbol_for_yahoo(storage_symbol)
-        recheck_attempts = max(1, self._max_retries - 1)
-        for attempt in range(1, recheck_attempts + 1):
-            data = self._download_batch(yahoo_symbol)
-            if has_usable_ohlcv_rows(self._extract_symbol_data(data, yahoo_symbol)):
-                normalized = normalize_symbol(storage_symbol)
-                if normalized is not None:
-                    return normalized
-            if attempt != recheck_attempts:
-                time.sleep(self._retry_backoff_seconds * attempt)
-        return None
-
-    def _recheck_uncertain_symbols(self, storage_symbols: list[str]) -> set[str]:
-        valid_symbols: set[str] = set()
-        for storage_symbol in storage_symbols:
-            normalized = self._recheck_uncertain_symbol(storage_symbol)
-            if normalized is not None:
-                valid_symbols.add(normalized)
+        log_event(
+            "validation.done",
+            provider="alpaca",
+            input_count=len(symbols),
+            normalized_count=len(normalized_symbols),
+            valid_count=len(valid_symbols),
+            elapsed_ms=elapsed_ms(started_at),
+        )
         return valid_symbols
+
+    def _run_batch_with_worker_session(
+        self,
+        symbols: list[str],
+        batch_index: int,
+        batch_count: int,
+    ) -> set[str]:
+        session = self._make_worker_session()
+        try:
+            return self._run_batch(
+                symbols,
+                batch_index=batch_index,
+                batch_count=batch_count,
+                session=session,
+            )
+        finally:
+            if session is not self._session and hasattr(session, "close"):
+                session.close()
+
+    def _make_worker_session(self) -> Any:
+        if isinstance(self._session, requests.Session):
+            session = requests.Session()
+            session.headers.update(self._session.headers)
+            return session
+        return self._session
+
+    def _run_batch(
+        self,
+        symbols: list[str],
+        *,
+        batch_index: int,
+        batch_count: int,
+        session: Any,
+    ) -> set[str]:
+        batch_started_at = time.perf_counter()
+        log_event(
+            "validation.batch.start",
+            batch_index=batch_index,
+            batch_count=batch_count,
+            batch_size=len(symbols),
+            symbols=symbols,
+        )
+        valid_symbols = self._validate_batch(
+            symbols,
+            batch_index=batch_index,
+            batch_count=batch_count,
+            session=session,
+        )
+        log_event(
+            "validation.batch.done",
+            batch_index=batch_index,
+            batch_size=len(symbols),
+            valid_count=len(valid_symbols),
+            elapsed_ms=elapsed_ms(batch_started_at),
+        )
+        return valid_symbols
+
+    def _validate_batch(
+        self,
+        symbols: list[str],
+        *,
+        batch_index: int,
+        batch_count: int,
+        session: Any,
+    ) -> set[str]:
+        remaining = list(symbols)
+        endpoint = f"{self._base_url}/v2/stocks/quotes/latest"
+
+        while remaining:
+            request_started_at = time.perf_counter()
+            log_event(
+                "alpaca.request",
+                batch_index=batch_index,
+                batch_count=batch_count,
+                url=endpoint,
+                symbol_count=len(remaining),
+                symbols=remaining,
+            )
+            response = session.get(
+                endpoint,
+                headers={
+                    "APCA-API-KEY-ID": self._api_key or "",
+                    "APCA-API-SECRET-KEY": self._secret_key or "",
+                },
+                params={
+                    "symbols": ",".join(remaining),
+                    "feed": "sip",
+                },
+                timeout=self._timeout,
+            )
+
+            if response.status_code == 200:
+                payload = response.json()
+                quotes = payload.get("quotes", {}) if isinstance(payload, dict) else {}
+                quote_symbols = {
+                    normalized
+                    for symbol in quotes.keys()
+                    if (normalized := normalize_symbol(symbol)) is not None
+                }
+                valid_symbols = {symbol for symbol in remaining if symbol in quote_symbols}
+                invalid_symbols = {symbol for symbol in remaining if symbol not in valid_symbols}
+
+                for symbol in valid_symbols:
+                    self._set_cache(symbol, True)
+                for symbol in invalid_symbols:
+                    self._set_cache(symbol, False)
+
+                log_event(
+                    "alpaca.response",
+                    batch_index=batch_index,
+                    batch_count=batch_count,
+                    status=response.status_code,
+                    symbol_count=len(remaining),
+                    quote_count=len(quote_symbols),
+                    valid_count=len(valid_symbols),
+                    invalid_count=len(invalid_symbols),
+                    elapsed_ms=elapsed_ms(request_started_at),
+                )
+                return valid_symbols
+
+            log_event(
+                "alpaca.response",
+                batch_index=batch_index,
+                batch_count=batch_count,
+                status=response.status_code,
+                symbol_count=len(remaining),
+                elapsed_ms=elapsed_ms(request_started_at),
+            )
+            if response.status_code not in {400, 404}:
+                response.raise_for_status()
+
+            message = extract_error_message(response)
+            invalid_symbol = parse_invalid_symbol_from_message(message)
+            if invalid_symbol is None or invalid_symbol not in remaining:
+                raise ValueError(f"unable to isolate invalid symbol from Alpaca response: {message}")
+
+            self._set_cache(invalid_symbol, False)
+            log_event(
+                "alpaca.invalid_symbol",
+                batch_index=batch_index,
+                batch_count=batch_count,
+                symbol=invalid_symbol,
+                status=response.status_code,
+            )
+            remaining = [symbol for symbol in remaining if symbol != invalid_symbol]
+
+        return set()
+
+    def _set_cache(self, symbol: str, value: bool) -> None:
+        with self._cache_lock:
+            self._cache[symbol] = value

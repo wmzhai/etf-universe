@@ -91,10 +91,15 @@ def test_parse_invesco_payload_extracts_holdings_rows() -> None:
     assert result.rows[0].constituent_symbol == "AAPL"
 
 
-def test_browser_fetch_json_parses_json_text() -> None:
+def test_browser_fetch_json_parses_json_text(capsys) -> None:
     page = FakeEvaluatePage({"status": 200, "text": '{"hello":"world"}'})
     assert browser_fetch_json(page, "https://api.example.test/data") == {"hello": "world"}
     assert page.calls == ["https://api.example.test/data"]
+    captured = capsys.readouterr()
+    assert "event=browser.request" in captured.err
+    assert "url=https://api.example.test/data" in captured.err
+    assert "event=browser.response" in captured.err
+    assert "status=200" in captured.err
 
 
 def test_browser_fetch_json_raises_on_non_200() -> None:

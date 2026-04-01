@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import requests
 
 from etf_universe.contracts import SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_float
+from etf_universe.runtime_logging import elapsed_ms, log_event
 
 
 USER_AGENT = (
@@ -19,6 +21,43 @@ def make_session() -> requests.Session:
     session = requests.Session()
     session.headers.update({"User-Agent": USER_AGENT})
     return session
+
+
+def request_with_logging(
+    session: Any,
+    method: str,
+    url: str,
+    *,
+    timeout: int | float = HTTP_TIMEOUT,
+    **kwargs: Any,
+) -> Any:
+    method_name = method.upper()
+    log_event("http.request", method=method_name, url=url, timeout=timeout)
+    started_at = time.perf_counter()
+    try:
+        response = session.request(method_name, url, timeout=timeout, **kwargs)
+    except Exception as exc:
+        log_event(
+            "http.error",
+            method=method_name,
+            url=url,
+            error_type=type(exc).__name__,
+            error=str(exc),
+            elapsed_ms=elapsed_ms(started_at),
+        )
+        raise
+
+    response_url = getattr(response, "url", url)
+    response_content = getattr(response, "content", b"") or b""
+    log_event(
+        "http.response",
+        method=method_name,
+        url=response_url,
+        status=getattr(response, "status_code", "unknown"),
+        bytes=len(response_content),
+        elapsed_ms=elapsed_ms(started_at),
+    )
+    return response
 
 
 def get_by_header(row: tuple[Any, ...], index: dict[str, int], header: str) -> Any:

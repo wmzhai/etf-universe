@@ -6,7 +6,7 @@ from datetime import date
 
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date, parse_float
-from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row
+from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
 def parse_ishares_csv(text: str, source_url: str) -> FetchResult:
@@ -61,6 +61,6 @@ def parse_ishares_csv(text: str, source_url: str) -> FetchResult:
 
 
 def fetch_ishares(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
-    response = session.get(spec.source_url, timeout=HTTP_TIMEOUT)
+    response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
     response.raise_for_status()
     return parse_ishares_csv(response.text, spec.source_url)

@@ -15,7 +15,6 @@ dependencies = [
   "playwright>=1.52.0",
   "pyarrow>=20.0.0",
   "requests>=2.32.3",
-  "yfinance>=1.2.0",
 ]
 
 [dependency-groups]

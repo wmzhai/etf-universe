@@ -59,11 +59,14 @@ The registry is the single source of truth for supported symbols. The README mus
 The package exposes a single CLI with subcommands:
 
 ```bash
-uv run etf-universe holdings list-supported
-uv run etf-universe holdings fetch --symbols SPY,QQQ --output-dir ./data/etf-holdings
+uv run etf-universe
+uv run etf-universe list
+uv run etf-universe fetch --symbols SPY,QQQ --output-dir ./data/universe/etf
 ```
 
-### Command: `holdings list-supported`
+The bare command runs a full fetch for all supported ETFs into the default output directory.
+
+### Command: `list`
 
 Purpose:
 
@@ -72,9 +75,10 @@ Purpose:
 Initial behavior:
 
 - Plain text output by default
+- One ETF symbol per line
 - Optional machine-friendly output can be added later
 
-### Command: `holdings fetch`
+### Command: `fetch`
 
 Purpose:
 
@@ -90,9 +94,10 @@ Behavior:
 - Reject unknown ETF symbols before any network work begins
 - Fetch all requested ETFs
 - Normalize holdings rows into a shared contract
-- Validate candidate equity symbols with batched `yfinance` downloads
+- Validate candidate equity symbols with batched Alpaca `latest quotes` requests
 - Write one parquet file and one metadata file per ETF
 - Print one summary line per ETF
+- Emit runtime logs to `stderr` for upstream requests, response statuses, stage timings, and total elapsed time
 
 ## Output Contract
 
@@ -135,13 +140,13 @@ Version 1 only keeps the latest snapshot per ETF in the selected output director
 
 ## Symbol Validation
 
-Version 1 uses batched `yfinance` downloads instead of Alpaca credentials:
+Version 1 uses batched Alpaca `latest quotes` validation with credentials supplied via `.env`:
 
 - Filter candidate symbols locally by allowed format
 - Deduplicate symbols across all fetched ETFs in the current run
-- Convert dot-form share classes such as `BRK.B` to Yahoo-compatible dash form such as `BRK-B` only for the remote validation request
-- Validate candidates in batches with `yfinance.download(...)`
-- Use `period="5d"` and `interval="1d"` to reduce false negatives from single-day trading gaps
+- Keep dot-form share classes such as `BRK.B` unchanged for Alpaca requests
+- Validate candidates in batches with `/v2/stocks/quotes/latest`
+- Remove symbols that Alpaca reports as `invalid symbol` and retry the remaining batch
 - Treat a symbol as valid only when its per-symbol OHLCV frame is not empty, contains at least one non-all-`NaN` OHLCV row, and has at least one valid `Close` or `Volume` value
 - Treat symbols with all-`NaN` OHLCV results as invalid
 - Convert back to the original normalized dot form for internal storage and output
@@ -216,7 +221,7 @@ src/etf_universe/
 - `storage.py`
   - Parquet and metadata writing
 - `validation.py`
-  - Batched `yfinance` symbol validation
+  - Batched Alpaca symbol validation
 - `providers/*.py`
   - Provider-specific HTTP or browser fetch logic
 - `cli.py`
@@ -231,7 +236,7 @@ Use `uv` for environment management, dependency installation, command execution,
 Core dependencies:
 
 - `requests`
-- `yfinance`
+- Alpaca market data API
 - `beautifulsoup4`
 - `openpyxl`
 - `pyarrow`
@@ -259,7 +264,7 @@ Required test categories:
 
 - Registry tests
 - Normalization tests
-- yfinance validation tests
+- Alpaca validation tests
 - Provider parser tests
 - CLI tests
 

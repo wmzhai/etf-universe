@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date_from_text
-from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row
+from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
 def get_direct_table_rows(table: Any) -> list[Any]:
@@ -82,6 +82,6 @@ def parse_first_trust_html(html_text: str, source_url: str) -> FetchResult:
 
 
 def fetch_first_trust(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
-    response = session.get(spec.source_url, timeout=HTTP_TIMEOUT)
+    response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
     response.raise_for_status()
     return parse_first_trust_html(response.text, spec.source_url)

@@ -5,16 +5,19 @@ Curated ETF holdings fetcher and exporter.
 ## Installation
 
 1. `uv sync` to install dependencies defined in `pyproject.toml`.
-2. If you intend to fetch Invesco ETFs, run `uv run playwright install chromium` so the headless browser is available when Playwright is launched.
+2. Copy `.env.sample` to `.env` and fill in `ALPACA_DATA_API_KEY` plus `ALPACA_DATA_SECRET_KEY` for Alpaca-backed symbol validation.
+3. If you intend to fetch Invesco ETFs, run `uv run playwright install chromium` so the headless browser is available when Playwright is launched.
 
 ## CLI examples
 
 ```sh
-uv run etf-universe holdings list-supported
-uv run etf-universe holdings fetch --symbols SPY,XLK
+uv run etf-universe
+uv run etf-universe list
+uv run etf-universe fetch --symbols SPY,XLK --output-dir ./data/universe/etf
 ```
 
-The fetch command writes each ETF’s normalized holdings to `data/etf-holdings/<SYMBOL>.parquet` by default and a companion `<SYMBOL>.meta.json`.
+The bare command runs a full fetch for every supported ETF. The fetch command writes each ETF’s normalized holdings to `data/universe/etf/<SYMBOL>.parquet` by default and a companion `<SYMBOL>.meta.json`.
+Fetch commands also emit runtime logs to `stderr`, including upstream request URLs, response statuses, per-stage elapsed times, and total elapsed time.
 
 ## Supported ETFs
 
@@ -58,11 +61,11 @@ Each successful fetch produces:
 - `<SYMBOL>.parquet`: normalized holdings rows with `symbol`, `name`, and `weight`.
 - `<SYMBOL>.meta.json`: metadata documenting the snapshot ({schemaVersion, etfSymbol, issuer, provider, asOfDate, fetchedAt, sourceUrl, sourceFormat, rowCount, normalizedRowCount, droppedRowCount}).
 
-All files land under the directory passed to `--output-dir` (defaults to `data/etf-holdings`).
+All files land under the directory passed to `--output-dir` (defaults to `data/universe/etf`).
 
 ## Symbol validation
 
-Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with `yfinance` over a five-day window at a one-day cadence. Validation makes HTTPS calls that convert dots to dashes (Yahoo’s ticker format) only for the download request; stored data and metadata remain in dot form. When multiple ETFs are fetched together, the CLI first builds the full candidate-symbol universe, deduplicates it once, and then validates it in sequential batches of up to 50 tickers with conservative retry/backoff behavior. No API key is required because validation relies on the public `yfinance.download` interface.
+Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with Alpaca `latest quotes`. Dot-form share classes remain in dot form for both requests and stored output. When multiple ETFs are fetched together, the CLI first builds the full candidate-symbol universe, deduplicates it once, and then validates it in concurrent batches of up to 200 tickers. Alpaca `400 invalid symbol` responses are reduced by removing the reported symbol and retrying the remaining batch. Symbols missing from a successful `quotes` payload are treated as invalid and dropped from the final holdings output.
 
 ## Development
 

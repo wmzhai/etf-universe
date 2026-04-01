@@ -4,7 +4,7 @@
 
 **Goal:** Build `etf-universe` as a standalone Python package managed with `uv` that exposes a stable CLI for listing supported ETFs and fetching holdings snapshots for a curated ETF subset into parquet plus JSON metadata outputs.
 
-**Architecture:** Split the package into a thin CLI, a registry layer, normalization and storage helpers, batched `yfinance`-based symbol validation, and provider-specific fetch modules. Keep the CLI as the only public interface for v1 so agents and humans all use the same entry point.
+**Architecture:** Split the package into a thin CLI, a registry layer, normalization and storage helpers, batched Alpaca-based symbol validation, and provider-specific fetch modules. Keep the CLI as the only public interface for v1 so agents and humans all use the same entry point.
 
 **Tech Stack:** Python 3.12, `uv`, `requests`, `beautifulsoup4`, `openpyxl`, `pyarrow`, `playwright`, `pytest`
 
@@ -1916,13 +1916,19 @@ uv run playwright install chromium
 List the supported ETFs:
 
 ```bash
-uv run etf-universe holdings list-supported
+uv run etf-universe list
 ```
 
 Fetch holdings into a local output directory:
 
 ```bash
-uv run etf-universe holdings fetch --symbols SPY,QQQ --output-dir ./data/etf-holdings
+uv run etf-universe fetch --symbols SPY,QQQ --output-dir ./data/universe/etf
+```
+
+Run a full refresh for every supported ETF:
+
+```bash
+uv run etf-universe
 ```
 
 ## Supported ETFs
@@ -1989,12 +1995,12 @@ Metadata fields:
 
 ## Symbol Validation
 
-`etf-universe` uses batched `yfinance` downloads for symbol validation in version 1.
+`etf-universe` uses batched Alpaca `latest quotes` requests for symbol validation in version 1.
 
-- No API key is required
-- Dot-form share classes such as `BRK.B` are translated to Yahoo-compatible dash form such as `BRK-B` only for validation
+- Alpaca credentials are loaded from `.env` or process environment variables
+- Dot-form share classes such as `BRK.B` remain in dot form for validation
 - Stored holdings output remains in normalized dot form
-- Validation runs in batches to reduce rate limiting risk
+- Validation runs in concurrent batches to reduce total runtime
 
 ## Development
 

@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 
 from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date_from_text
-from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, get_by_header
+from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, get_by_header, request_with_logging
 
 
 def _find_as_of_date(rows: list[tuple[Any, ...]]):
@@ -73,6 +73,6 @@ def parse_ssga_workbook(content: bytes, source_url: str) -> FetchResult:
 
 
 def fetch_ssga(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
-    response = session.get(spec.source_url, timeout=HTTP_TIMEOUT)
+    response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
     response.raise_for_status()
     return parse_ssga_workbook(response.content, spec.source_url)
