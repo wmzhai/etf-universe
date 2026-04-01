@@ -5,7 +5,7 @@ Curated ETF holdings fetcher and exporter.
 ## Installation
 
 1. `uv sync` to install dependencies defined in `pyproject.toml`.
-2. Copy `.env.sample` to `.env` and fill in `ALPACA_DATA_API_KEY` plus `ALPACA_DATA_SECRET_KEY` for Alpaca-backed symbol validation.
+2. Copy `.env.sample` to `.env` and fill in `ALPACA_DATA_API_KEY` plus `ALPACA_DATA_SECRET_KEY` if you want Alpaca-backed symbol validation. `ALPACA_DATA_BASE_URL` is optional and defaults to `https://data.alpaca.markets`.
 3. If you intend to fetch Invesco ETFs, run `uv run playwright install chromium` so the headless browser is available when Playwright is launched.
 
 ## CLI examples
@@ -65,7 +65,7 @@ All files land under the directory passed to `--output-dir` (defaults to `data/u
 
 ## Symbol validation
 
-Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with Alpaca `latest quotes`. Dot-form share classes remain in dot form for both requests and stored output. When multiple ETFs are fetched together, the CLI first builds the full candidate-symbol universe, deduplicates it once, and then validates it in concurrent batches of up to 200 tickers. Alpaca `400 invalid symbol` responses are reduced by removing the reported symbol and retrying the remaining batch. Symbols missing from a successful `quotes` payload are treated as invalid and dropped from the final holdings output.
+Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated with Alpaca `latest quotes`. Dot-form share classes remain in dot form for both requests and stored output. When multiple ETFs are fetched together, the CLI first builds the full candidate-symbol universe, deduplicates it once, and then validates it in concurrent batches of up to 200 tickers, with up to 8 batches in flight at a time. Alpaca `400 invalid symbol` responses are reduced by removing the reported symbol and retrying the remaining batch. Symbols missing from a successful `quotes` payload are treated as invalid and dropped from the final holdings output. If Alpaca credentials are not configured, the validator is disabled and all locally eligible normalized symbols are kept.
 
 ## Development
 
@@ -75,4 +75,5 @@ Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated wit
 
 - The ETF roster is the curated `ETF_SPECS` dictionary in `src/etf_universe/registry.py`; please align any README updates with that source.
 - Each fetch delivers only the latest snapshot published by the provider; historical snapshots must be stored externally.
-- Invesco-backed ETFs require the Chromium browser because their holdings page is scraped via Playwright rather than a static XLSX bundle.
+- Invesco-backed ETFs require the Chromium browser because their holdings data is discovered in a Playwright browser context rather than a static CSV or XLSX endpoint.
+- Non-Invesco ETFs are fetched concurrently, but Invesco ETFs still run serially inside one browser session.
