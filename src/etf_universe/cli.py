@@ -16,13 +16,22 @@ from etf_universe.storage import write_meta, write_parquet
 from etf_universe.validation import AlpacaDataSymbolValidator
 
 
-DEFAULT_OUTPUT_DIR = Path("data/universe/etf")
+DEFAULT_OUTPUT_DIR = Path.home() / "data" / "universe" / "etf"
 FETCH_MAX_CONCURRENT_SPECS = 16
+
+
+def _resolve_output_dir(raw: str | Path) -> Path:
+    return Path(raw).expanduser()
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="etf-universe")
     parser.set_defaults(func=run_fetch_all)
+    parser.add_argument(
+        "--output-dir",
+        type=_resolve_output_dir,
+        default=DEFAULT_OUTPUT_DIR,
+    )
     top_level = parser.add_subparsers(dest="command")
 
     list_command = top_level.add_parser("list")
@@ -30,7 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     fetch = top_level.add_parser("fetch")
     fetch.add_argument("--symbols", required=True)
-    fetch.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    fetch.add_argument("--output-dir", type=_resolve_output_dir, default=DEFAULT_OUTPUT_DIR)
     fetch.set_defaults(func=run_fetch)
 
     return parser
@@ -314,12 +323,11 @@ def _run_fetch(symbols: list[str], output_dir: Path) -> int:
 
 
 def run_fetch(args: argparse.Namespace) -> int:
-    return _run_fetch(parse_symbols_arg(args.symbols), Path(args.output_dir))
+    return _run_fetch(parse_symbols_arg(args.symbols), _resolve_output_dir(args.output_dir))
 
 
 def run_fetch_all(args: argparse.Namespace) -> int:
-    del args
-    return _run_fetch(list_supported_symbols(), DEFAULT_OUTPUT_DIR)
+    return _run_fetch(list_supported_symbols(), _resolve_output_dir(args.output_dir))
 
 
 def main(argv: list[str] | None = None) -> int:
