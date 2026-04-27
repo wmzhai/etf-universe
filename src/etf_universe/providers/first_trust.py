@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from bs4 import BeautifulSoup
 
-from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
+from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date_from_text
+from etf_universe.profile import (
+    merge_profiles,
+    parse_compact_number,
+    parse_profile_date,
+)
 from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
@@ -78,10 +84,72 @@ def parse_first_trust_html(html_text: str, source_url: str) -> FetchResult:
         source_url=source_url,
         source_format="html",
         rows=records,
+        profile=EtfProfile(
+            fundName=_extract_first_trust_fund_name(soup),
+            profileAsOfDate=as_of_date.isoformat(),
+            profileSourceUrl=source_url,
+        ),
     )
+
+
+def parse_first_trust_profile_html(html_text: str, source_url: str) -> EtfProfile:
+    soup = BeautifulSoup(html_text, "html.parser")
+
+    return EtfProfile(
+        fundName=_extract_first_trust_fund_name(soup),
+        exchange=_summary_value(soup, "Exchange"),
+        fundType=_summary_value(soup, "Fund Type"),
+        cusip=_summary_value(soup, "CUSIP"),
+        isin=_summary_value(soup, "ISIN"),
+        inceptionDate=parse_profile_date(_summary_value(soup, "Inception")),
+        expenseRatio=parse_compact_number(_summary_value(soup, "Total Expense Ratio")),
+        netExpenseRatio=parse_compact_number(_summary_value(soup, "Net Expense Ratio")),
+        assetsUnderManagement=parse_compact_number(_summary_value(soup, "Total Net Assets")),
+        sharesOutstanding=parse_compact_number(_summary_value(soup, "Outstanding Shares")),
+        profileSourceUrl=source_url,
+    )
+
+
+def _summary_value(soup: BeautifulSoup, label: str) -> str | None:
+    target = re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip()
+    for row in soup.find_all("tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
+        if len(cells) < 2:
+            continue
+        row_label = re.sub(r"[^a-z0-9]+", " ", cells[0].casefold()).strip()
+        if row_label == target:
+            return clean_text(cells[1])
+    return None
+
+
+def _extract_first_trust_fund_name(soup: BeautifulSoup) -> str | None:
+    page_header = soup.find(id=lambda value: bool(value) and value.endswith("lblPageHeader"))
+    raw_name = page_header.get_text(" ", strip=True) if page_header else None
+    if raw_name is None and soup.title:
+        raw_name = soup.title.get_text(" ", strip=True)
+    name = clean_text(raw_name)
+    if name is None:
+        return None
+    return re.sub(r"\s*\([A-Z0-9.-]+\)\s*$", "", name)
 
 
 def fetch_first_trust(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
     response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
     response.raise_for_status()
-    return parse_first_trust_html(response.text, spec.source_url)
+    result = parse_first_trust_html(response.text, spec.source_url)
+
+    summary_url = spec.source_url.replace("EtfHoldings.aspx", "EtfSummary.aspx")
+    try:
+        profile_response = request_with_logging(session, "GET", summary_url, timeout=HTTP_TIMEOUT)
+        profile_response.raise_for_status()
+        profile = parse_first_trust_profile_html(profile_response.text, summary_url)
+    except Exception:
+        return result
+
+    return FetchResult(
+        as_of_date=result.as_of_date,
+        source_url=result.source_url,
+        source_format=result.source_format,
+        rows=result.rows,
+        profile=merge_profiles(profile, result.profile),
+    )

@@ -5,7 +5,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
+from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date_from_text
 from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, get_by_header, request_with_logging
 
@@ -32,6 +32,18 @@ def _find_header_row(rows: list[tuple[Any, ...]]) -> tuple[int, dict[str, int]]:
             return row_idx, index
 
     raise ValueError("Unable to find required headers in SSGA workbook")
+
+
+def _find_labeled_value(rows: list[tuple[Any, ...]], label: str) -> str | None:
+    target = label.casefold()
+    for row in rows:
+        for index, cell in enumerate(row):
+            cell_text = clean_text(cell)
+            if cell_text is None or cell_text.casefold() != target:
+                continue
+            if index + 1 < len(row):
+                return clean_text(row[index + 1])
+    return None
 
 
 def parse_ssga_workbook(content: bytes, source_url: str) -> FetchResult:
@@ -69,6 +81,12 @@ def parse_ssga_workbook(content: bytes, source_url: str) -> FetchResult:
         source_url=source_url,
         source_format="xlsx",
         rows=records,
+        profile=EtfProfile(
+            fundName=_find_labeled_value(rows, "Fund Name:"),
+            assetClass="Equity",
+            profileAsOfDate=as_of_date.isoformat(),
+            profileSourceUrl=source_url,
+        ),
     )
 
 

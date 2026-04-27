@@ -8,6 +8,8 @@ from etf_universe.providers.ssga import parse_ssga_workbook
 def test_parse_ssga_workbook_extracts_holdings_rows() -> None:
     workbook = Workbook()
     sheet = workbook.active
+    sheet.append(["Fund Name:", "SPDR S&P 500 ETF Trust"])
+    sheet.append(["Ticker Symbol:", "SPY"])
     sheet.append([])
     sheet.append([])
     sheet.append(["As of Mar 28, 2026", None])
@@ -24,6 +26,8 @@ def test_parse_ssga_workbook_extracts_holdings_rows() -> None:
     assert result.source_format == "xlsx"
     assert result.as_of_date.isoformat() == "2026-03-28"
     assert [row.constituent_symbol for row in result.rows] == ["AAPL", "BRK/B"]
+    assert result.profile is not None
+    assert result.profile.fundName == "SPDR S&P 500 ETF Trust"
 
 
 def test_parse_ssga_workbook_skips_footer_and_tickerless_rows() -> None:

@@ -21,6 +21,10 @@ def test_extract_dataset_url_rejects_similar_symbol_values() -> None:
 
 def test_parse_vaneck_payload_builds_fetch_result() -> None:
     payload = {
+        "Total Net Assets": "$58.18B",
+        "Gross Expense Ratio": "0.35%",
+        "Net Expense Ratio": "0.35%",
+        "Inception Date": "12/20/2011",
         "HoldingsList": [
             {
                 "AsOfDate": "2026-03-28",
@@ -51,3 +55,8 @@ def test_parse_vaneck_payload_builds_fetch_result() -> None:
     assert result.as_of_date.isoformat() == "2026-03-28"
     assert [row.constituent_symbol for row in result.rows] == ["NVDA", "TSM"]
     assert [row.security_type for row in result.rows] == ["Common Stock", "Common Stock"]
+    assert result.profile is not None
+    assert result.profile.assetsUnderManagement == 58180000000.0
+    assert result.profile.expenseRatio == 0.35
+    assert result.profile.netExpenseRatio == 0.35
+    assert result.profile.inceptionDate == "2011-12-20"

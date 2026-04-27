@@ -4,7 +4,7 @@ from dataclasses import asdict
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from etf_universe.contracts import HoldingsMeta, NormalizedHoldingRow
+from etf_universe.contracts import EtfProfile, HoldingsMeta, NormalizedHoldingRow
 from etf_universe.storage import write_meta, write_parquet
 
 
@@ -50,6 +50,11 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
         rowCount=503,
         normalizedRowCount=503,
         droppedRowCount=0,
+        profile=EtfProfile(
+            fundName="SPDR S&P 500 ETF Trust",
+            expenseRatio=0.0945,
+            profileSourceUrl="https://example.com/spy",
+        ),
     )
 
     write_meta(meta, output_path)
@@ -60,6 +65,8 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
     raw_text = output_path.read_text(encoding="utf-8")
     payload = json.loads(raw_text)
     assert payload == expected_payload
+    assert payload["profile"]["fundName"] == "SPDR S&P 500 ETF Trust"
+    assert payload["profile"]["distributionYield"] is None
     assert raw_text == expected_text
     assert raw_text.startswith("{\n")
     assert "\n  \"" in raw_text

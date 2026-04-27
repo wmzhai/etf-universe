@@ -6,10 +6,24 @@ from typing import Any
 
 from playwright.sync_api import Browser, Page, sync_playwright
 
-from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
+from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date
+from etf_universe.profile import (
+    first_as_of_date,
+    label_value,
+    merge_profiles,
+    parse_compact_number,
+    parse_profile_date,
+    text_lines,
+)
 from etf_universe.providers.base import build_source_row
 from etf_universe.runtime_logging import elapsed_ms, log_event
+
+
+INVESCO_FUND_NAMES = {
+    "QQQ": "Invesco QQQ ETF",
+    "RSP": "Invesco S&P 500 Equal Weight ETF",
+}
 
 
 def browser_fetch_json(page: Page, api_url: str) -> dict[str, Any]:
@@ -72,10 +86,49 @@ def parse_invesco_payload(payload: dict[str, Any], source_url: str) -> FetchResu
     )
 
 
+def parse_invesco_profile_text(title: str | None, body_text: str, source_url: str) -> EtfProfile:
+    lines = text_lines(body_text)
+    fund_name = _fund_name_from_title(title)
+    assets_under_management = (
+        label_value(lines, "Assets Under Management")
+        or label_value(lines, "Market value")
+    )
+
+    return EtfProfile(
+        fundName=fund_name,
+        exchange=label_value(lines, "Exchange"),
+        cusip=label_value(lines, "CUSIP"),
+        isin=label_value(lines, "ISIN"),
+        inceptionDate=parse_profile_date(label_value(lines, "Inception date")),
+        expenseRatio=parse_compact_number(label_value(lines, "Total Expense Ratio")),
+        netExpenseRatio=parse_compact_number(label_value(lines, "Net expense ratio")),
+        assetsUnderManagement=parse_compact_number(assets_under_management),
+        sharesOutstanding=parse_compact_number(label_value(lines, "Shares Outstanding")),
+        profileAsOfDate=first_as_of_date(lines),
+        profileSourceUrl=source_url,
+    )
+
+
+def _fund_name_from_title(title: str | None) -> str | None:
+    if title is None:
+        return None
+    name = clean_text(title.split("|", 1)[0])
+    if name is None:
+        return None
+    normalized = " ".join(name.casefold().replace("&", "and").split())
+    if normalized.startswith("holdings and sector allocations"):
+        return None
+    return name
+
+
 def fetch_invesco(spec: EtfSpec, page: Page) -> FetchResult:
     log_event("browser.goto.start", etf=spec.symbol, url=spec.source_url)
     started_at = time.perf_counter()
     page_response = page.goto(spec.source_url, wait_until="domcontentloaded", timeout=120000)
+    try:
+        page.wait_for_load_state("networkidle", timeout=30000)
+    except Exception:
+        pass
     page_status = getattr(page_response, "status", None)
     log_event(
         "browser.goto.done",
@@ -102,8 +155,28 @@ def fetch_invesco(spec: EtfSpec, page: Page) -> FetchResult:
         raise ValueError(f"Unsupported Invesco symbol: {spec.symbol}")
 
     source_url = api_url.replace("&amp;", "&")
+    try:
+        profile = parse_invesco_profile_text(
+            title=page.title(),
+            body_text=page.locator("body").inner_text(timeout=10000),
+            source_url=spec.source_url,
+        )
+    except Exception:
+        profile = EtfProfile(profileSourceUrl=spec.source_url)
+    profile = merge_profiles(
+        EtfProfile(fundName=INVESCO_FUND_NAMES.get(spec.symbol), profileSourceUrl=spec.source_url),
+        profile,
+    )
+
     payload = browser_fetch_json(page, api_url)
-    return parse_invesco_payload(payload, source_url)
+    result = parse_invesco_payload(payload, source_url)
+    return FetchResult(
+        as_of_date=result.as_of_date,
+        source_url=result.source_url,
+        source_format=result.source_format,
+        rows=result.rows,
+        profile=merge_profiles(profile, result.profile),
+    )
 
 
 def launch_browser() -> tuple[Any, Browser, Page]:

@@ -12,6 +12,7 @@ from etf_universe.providers.invesco import (
     fetch_invesco,
     launch_browser,
     parse_invesco_payload,
+    parse_invesco_profile_text,
 )
 
 
@@ -89,6 +90,45 @@ def test_parse_invesco_payload_extracts_holdings_rows() -> None:
     assert result.as_of_date.isoformat() == "2026-03-28"
     assert result.source_format == "json-browser"
     assert result.rows[0].constituent_symbol == "AAPL"
+
+
+def test_parse_invesco_profile_text_extracts_product_details() -> None:
+    profile = parse_invesco_profile_text(
+        title="Invesco QQQ ETF | Invesco US",
+        body_text="""as of 4/25/2026
+Fund ticker
+QQQ
+Exchange
+Nasdaq/NMS (Global Market)
+Inception date
+03/09/1999
+Total Expense Ratio
+0.18%
+Assets Under Management
+$435.32B
+Shares Outstanding
+655.45M
+""",
+        source_url="https://example.com/qqq",
+    )
+
+    assert profile.fundName == "Invesco QQQ ETF"
+    assert profile.exchange == "Nasdaq/NMS (Global Market)"
+    assert profile.inceptionDate == "1999-03-09"
+    assert profile.expenseRatio == 0.18
+    assert profile.assetsUnderManagement == 435320000000.0
+    assert profile.sharesOutstanding == 655450000.0
+    assert profile.profileAsOfDate == "2026-04-25"
+
+
+def test_parse_invesco_profile_text_ignores_generic_holdings_title() -> None:
+    profile = parse_invesco_profile_text(
+        title="Holdings & Sector Allocations of Invesco QQQ | Invesco US",
+        body_text="",
+        source_url="https://example.com/qqq",
+    )
+
+    assert profile.fundName is None
 
 
 def test_browser_fetch_json_parses_json_text(capsys) -> None:

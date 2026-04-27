@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
-from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
+from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import (
     collect_candidate_symbols,
     normalize_for_storage,
@@ -142,6 +142,46 @@ def test_normalize_for_storage_builds_rows_and_meta() -> None:
     assert meta.etfSymbol == "SPY"
     assert meta.normalizedRowCount == 2
     assert meta.droppedRowCount == 1
+
+
+def test_normalize_for_storage_carries_profile_into_meta() -> None:
+    spec = EtfSpec(
+        symbol="SOXX",
+        group="Layer 2",
+        issuer="iShares",
+        provider="ishares",
+        source_url="https://example.com/soxx.csv",
+    )
+    profile = EtfProfile(
+        fundName="iShares Semiconductor ETF",
+        exchange="NASDAQ",
+        assetClass="Equity",
+        inceptionDate="2001-07-10",
+        expenseRatio=0.34,
+        assetsUnderManagement=30418500216.0,
+        sharesOutstanding=65900000.0,
+        secYield30Day=0.27,
+        distributionFrequency="Quarterly",
+        profileAsOfDate="2026-04-24",
+        profileSourceUrl="https://example.com/soxx",
+    )
+    fetch_result = FetchResult(
+        as_of_date=date(2026, 4, 24),
+        source_url="https://example.com/soxx.csv",
+        source_format="csv",
+        rows=[SourceHoldingRow("AMD", "Advanced Micro Devices", 7.88)],
+        profile=profile,
+    )
+
+    rows, meta = normalize_for_storage(
+        spec=spec,
+        fetched_at=datetime(2026, 4, 27, 12, 0, tzinfo=timezone.utc),
+        fetch_result=fetch_result,
+        valid_symbols={"AMD"},
+    )
+
+    assert [row.symbol for row in rows] == ["AMD"]
+    assert meta.profile == profile
 
 
 def test_normalize_for_storage_rejects_cash_like_rows_before_symbol_validation() -> None:

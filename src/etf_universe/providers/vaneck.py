@@ -5,8 +5,9 @@ import re
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from etf_universe.contracts import EtfSpec, FetchResult, SourceHoldingRow
+from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import clean_text, parse_date
+from etf_universe.profile import parse_compact_number, parse_profile_date
 from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
@@ -46,6 +47,14 @@ def parse_vaneck_payload(payload: dict[str, Any], source_url: str) -> FetchResul
         source_url=source_url,
         source_format="json",
         rows=records,
+        profile=EtfProfile(
+            inceptionDate=parse_profile_date(payload.get("Inception Date")),
+            expenseRatio=parse_compact_number(payload.get("Gross Expense Ratio")),
+            netExpenseRatio=parse_compact_number(payload.get("Net Expense Ratio")),
+            assetsUnderManagement=parse_compact_number(payload.get("Total Net Assets")),
+            profileAsOfDate=as_of_date.isoformat(),
+            profileSourceUrl=source_url,
+        ),
     )
 
 
