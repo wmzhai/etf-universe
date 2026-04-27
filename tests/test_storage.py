@@ -41,17 +41,11 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
     meta = HoldingsMeta(
         etfSymbol="SPY",
         issuer="SSGA",
-        provider="ssga",
-        asOfDate="2026-03-28",
         fetchedAt="2026-03-31T12:00:00Z",
         sourceUrl="https://example.com/spy.xlsx",
-        sourceFormat="xlsx",
-        rowCount=503,
-        normalizedRowCount=503,
-        droppedRowCount=0,
+        count=503,
         fundName="SPDR S&P 500 ETF Trust",
         expenseRatio=0.0945,
-        profileSourceUrl="https://example.com/spy",
     )
 
     write_meta(meta, output_path)
@@ -64,6 +58,17 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
     assert payload == expected_payload
     assert "schemaVersion" not in payload
     assert "profile" not in payload
+    assert "provider" not in payload
+    assert "asOfDate" not in payload
+    assert "sourceFormat" not in payload
+    assert "fundType" not in payload
+    assert "profileAsOfDate" not in payload
+    assert "rowCount" not in payload
+    assert "normalizedRowCount" not in payload
+    assert "droppedRowCount" not in payload
+    assert "distributionFrequency" not in payload
+    assert "profileSourceUrl" not in payload
+    assert payload["count"] == 503
     assert payload["fundName"] == "SPDR S&P 500 ETF Trust"
     assert payload["distributionYield"] is None
     assert raw_text == expected_text

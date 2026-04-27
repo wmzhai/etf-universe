@@ -140,8 +140,10 @@ def test_normalize_for_storage_builds_rows_and_meta() -> None:
 
     assert [row.symbol for row in rows] == ["AAPL", "BRK.B"]
     assert meta.etfSymbol == "SPY"
-    assert meta.normalizedRowCount == 2
-    assert meta.droppedRowCount == 1
+    assert meta.count == 2
+    assert not hasattr(meta, "rowCount")
+    assert not hasattr(meta, "normalizedRowCount")
+    assert not hasattr(meta, "droppedRowCount")
 
 
 def test_normalize_for_storage_carries_profile_into_meta() -> None:
@@ -182,6 +184,17 @@ def test_normalize_for_storage_carries_profile_into_meta() -> None:
 
     assert [row.symbol for row in rows] == ["AMD"]
     assert not hasattr(meta, "profile")
+    assert not hasattr(meta, "provider")
+    assert not hasattr(meta, "asOfDate")
+    assert not hasattr(meta, "sourceFormat")
+    assert not hasattr(meta, "fundType")
+    assert not hasattr(meta, "profileAsOfDate")
+    assert not hasattr(meta, "rowCount")
+    assert not hasattr(meta, "normalizedRowCount")
+    assert not hasattr(meta, "droppedRowCount")
+    assert not hasattr(meta, "distributionFrequency")
+    assert not hasattr(meta, "profileSourceUrl")
+    assert meta.count == 1
     assert meta.fundName == "iShares Semiconductor ETF"
     assert meta.exchange == "NASDAQ"
     assert meta.assetClass == "Equity"
@@ -190,9 +203,6 @@ def test_normalize_for_storage_carries_profile_into_meta() -> None:
     assert meta.assetsUnderManagement == 30418500216.0
     assert meta.sharesOutstanding == 65900000.0
     assert meta.secYield30Day == 0.27
-    assert meta.distributionFrequency == "Quarterly"
-    assert meta.profileAsOfDate == "2026-04-24"
-    assert meta.profileSourceUrl == "https://example.com/soxx"
 
 
 def test_normalize_for_storage_rejects_cash_like_rows_before_symbol_validation() -> None:
@@ -221,8 +231,7 @@ def test_normalize_for_storage_rejects_cash_like_rows_before_symbol_validation()
     )
 
     assert [row.symbol for row in rows] == ["AAPL"]
-    assert meta.normalizedRowCount == 1
-    assert meta.droppedRowCount == 1
+    assert meta.count == 1
 
 
 def test_normalize_for_storage_rejects_unclassified_currency_placeholders() -> None:
@@ -251,8 +260,7 @@ def test_normalize_for_storage_rejects_unclassified_currency_placeholders() -> N
     )
 
     assert [row.symbol for row in rows] == ["AAPL"]
-    assert meta.normalizedRowCount == 1
-    assert meta.droppedRowCount == 1
+    assert meta.count == 1
 
 
 @pytest.mark.parametrize(
@@ -293,5 +301,4 @@ def test_normalize_for_storage_rejects_iso_currency_code_name_pairs(
     )
 
     assert [row.symbol for row in rows] == ["AAPL"]
-    assert meta.normalizedRowCount == 1
-    assert meta.droppedRowCount == 1
+    assert meta.count == 1

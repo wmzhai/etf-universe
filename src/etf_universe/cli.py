@@ -254,18 +254,19 @@ def _run_fetch(symbols: list[str], output_dir: Path) -> int:
             meta_path = output_dir / f"{spec.symbol}.meta.json"
             write_parquet(rows, parquet_path)
             write_meta(meta, meta_path)
+            dropped_row_count = len(fetch_result.rows) - meta.count
             log_event(
                 "storage.write.done",
                 etf=spec.symbol,
-                normalized_row_count=meta.normalizedRowCount,
-                dropped_row_count=meta.droppedRowCount,
+                normalized_row_count=meta.count,
+                dropped_row_count=dropped_row_count,
                 parquet_path=parquet_path,
                 meta_path=meta_path,
                 elapsed_ms=elapsed_ms(storage_started_at),
             )
             print(
-                f"{spec.symbol}: kept={meta.normalizedRowCount} dropped={meta.droppedRowCount} "
-                f"as_of={meta.asOfDate} provider={spec.issuer}"
+                f"{spec.symbol}: kept={meta.count} dropped={dropped_row_count} "
+                f"as_of={fetch_result.as_of_date.isoformat()} provider={spec.issuer}"
             )
         log_event("phase.done", stage="write", etf_count=len(fetch_results), elapsed_ms=elapsed_ms(write_started_at))
     except Exception as exc:

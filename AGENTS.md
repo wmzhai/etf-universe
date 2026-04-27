@@ -5,3 +5,4 @@
 - When publishing CLI examples, reference the flat public command hierarchy (`uv run etf-universe`, `uv run etf-universe list`, `uv run etf-universe fetch …`).
 - Do not document deprecated CLI names or removed validation backends; this repository only documents the current flat CLI and Alpaca-based validation flow.
 - Keep the README’s supported ETF list synchronized with `src/etf_universe/registry.py`; any change to the registry must be reflected inside the markers.
+- Before committing behavior or output-format changes, run the full CLI flow with `uv run etf-universe`, inspect generated `output/*.meta.json` and `output/*.parquet`, and use Codex to independently review the actual run logs and output shape; unit tests are useful but are not the primary confidence gate.

@@ -67,26 +67,16 @@ def test_fetch_multi_etf_uses_browser_and_validates_symbols_once(
     spy_meta = HoldingsMeta(
         etfSymbol="SPY",
         issuer="SSGA",
-        provider="ssga",
-        asOfDate="2026-03-28",
         fetchedAt="2026-03-31T12:00:00Z",
         sourceUrl=spy_spec.source_url,
-        sourceFormat="xlsx",
-        rowCount=1,
-        normalizedRowCount=1,
-        droppedRowCount=0,
+        count=1,
     )
     qqq_meta = HoldingsMeta(
         etfSymbol="QQQ",
         issuer="Invesco",
-        provider="invesco",
-        asOfDate="2026-03-28",
         fetchedAt="2026-03-31T12:00:00Z",
         sourceUrl=qqq_spec.source_url,
-        sourceFormat="json-browser",
-        rowCount=1,
-        normalizedRowCount=1,
-        droppedRowCount=0,
+        count=1,
     )
 
     session = FakeSession()
@@ -301,14 +291,9 @@ def test_fetch_runs_non_invesco_specs_concurrently(
             HoldingsMeta(
                 etfSymbol=spec.symbol,
                 issuer=spec.issuer,
-                provider=spec.provider,
-                asOfDate="2026-03-28",
                 fetchedAt="2026-03-31T12:00:00Z",
                 sourceUrl=spec.source_url,
-                sourceFormat=fetch_result.source_format,
-                rowCount=1,
-                normalizedRowCount=1,
-                droppedRowCount=0,
+                count=1,
             ),
         )
 
@@ -394,14 +379,9 @@ def test_fetch_raises_cleanup_error_after_success_and_closes_session(
     qqq_meta = HoldingsMeta(
         etfSymbol="QQQ",
         issuer="Invesco",
-        provider="invesco",
-        asOfDate="2026-03-28",
         fetchedAt="2026-03-31T12:00:00Z",
         sourceUrl="https://example.test/qqq",
-        sourceFormat="json-browser",
-        rowCount=1,
-        normalizedRowCount=1,
-        droppedRowCount=0,
+        count=1,
     )
 
     def fake_make_session() -> FakeSession:
@@ -530,14 +510,9 @@ def test_bare_command_fetches_all_supported_etfs_to_default_output_dir(
             HoldingsMeta(
                 etfSymbol="SPY",
                 issuer="SSGA",
-                provider="ssga",
-                asOfDate="2026-03-28",
                 fetchedAt="2026-03-31T12:00:00Z",
                 sourceUrl=spy_spec.source_url,
-                sourceFormat="xlsx",
-                rowCount=1,
-                normalizedRowCount=1,
-                droppedRowCount=0,
+                count=1,
             ),
         )
 

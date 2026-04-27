@@ -10,6 +10,9 @@ from etf_universe.contracts import FetchResult, HoldingsMeta, NormalizedHoldingR
 
 
 ALLOWED_EQUITY_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)*$")
+META_PROFILE_EXCLUDED_FIELDS = frozenset(
+    {"distributionFrequency", "fundType", "profileAsOfDate", "profileSourceUrl"}
+)
 PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "nan", "none", "null"})
 CASH_LIKE_FIELD_TERMS = ("cash", "cash equivalent", "currency", "money market")
 NON_HOLDING_NAME_TERMS = ("cash and other", "cash position", "other assets", "other liabilities")
@@ -132,21 +135,16 @@ def normalize_for_storage(
     valid_symbols: set[str] | None = None,
 ) -> tuple[list[NormalizedHoldingRow], HoldingsMeta]:
     normalized_rows: list[NormalizedHoldingRow] = []
-    dropped_row_count = 0
 
     for row in fetch_result.rows:
         if not is_locally_eligible_holding_row(row):
-            dropped_row_count += 1
             continue
         normalized_symbol = normalize_symbol(row.constituent_symbol)
         if normalized_symbol is None:
-            dropped_row_count += 1
             continue
         if not is_supported_equity_symbol(normalized_symbol):
-            dropped_row_count += 1
             continue
         if valid_symbols is not None and normalized_symbol not in valid_symbols:
-            dropped_row_count += 1
             continue
         normalized_rows.append(
             NormalizedHoldingRow(
@@ -162,14 +160,13 @@ def normalize_for_storage(
     meta = HoldingsMeta(
         etfSymbol=spec.symbol,
         issuer=spec.issuer,
-        provider=spec.provider,
-        asOfDate=fetch_result.as_of_date.isoformat(),
         fetchedAt=fetched_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         sourceUrl=fetch_result.source_url,
-        sourceFormat=fetch_result.source_format,
-        rowCount=len(fetch_result.rows),
-        normalizedRowCount=len(normalized_rows),
-        droppedRowCount=dropped_row_count,
-        **asdict(fetch_result.profile),
+        count=len(normalized_rows),
+        **{
+            key: value
+            for key, value in asdict(fetch_result.profile).items()
+            if key not in META_PROFILE_EXCLUDED_FIELDS
+        },
     )
     return normalized_rows, meta

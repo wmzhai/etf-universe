@@ -62,18 +62,12 @@ class NormalizedHoldingRow:
 class HoldingsMeta:
     etfSymbol: str
     issuer: str
-    provider: str
-    asOfDate: str
     fetchedAt: str
     sourceUrl: str
-    sourceFormat: str
-    rowCount: int
-    normalizedRowCount: int
-    droppedRowCount: int
+    count: int
     fundName: str | None = None
     exchange: str | None = None
     assetClass: str | None = None
-    fundType: str | None = None
     cusip: str | None = None
     isin: str | None = None
     inceptionDate: str | None = None
@@ -83,6 +77,3 @@ class HoldingsMeta:
     sharesOutstanding: float | None = None
     distributionYield: float | None = None
     secYield30Day: float | None = None
-    distributionFrequency: str | None = None
-    profileAsOfDate: str | None = None
-    profileSourceUrl: str | None = None
