@@ -4,7 +4,7 @@ from dataclasses import asdict
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from etf_universe.contracts import EtfProfile, HoldingsMeta, NormalizedHoldingRow
+from etf_universe.contracts import HoldingsMeta, NormalizedHoldingRow
 from etf_universe.storage import write_meta, write_parquet
 
 
@@ -39,7 +39,6 @@ def test_write_parquet_persists_expected_rows(tmp_path) -> None:
 def test_write_meta_persists_json_sidecar(tmp_path) -> None:
     output_path = tmp_path / "SPY.meta.json"
     meta = HoldingsMeta(
-        schemaVersion="2026-03-31.etf-universe-meta.v1",
         etfSymbol="SPY",
         issuer="SSGA",
         provider="ssga",
@@ -50,11 +49,9 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
         rowCount=503,
         normalizedRowCount=503,
         droppedRowCount=0,
-        profile=EtfProfile(
-            fundName="SPDR S&P 500 ETF Trust",
-            expenseRatio=0.0945,
-            profileSourceUrl="https://example.com/spy",
-        ),
+        fundName="SPDR S&P 500 ETF Trust",
+        expenseRatio=0.0945,
+        profileSourceUrl="https://example.com/spy",
     )
 
     write_meta(meta, output_path)
@@ -65,8 +62,10 @@ def test_write_meta_persists_json_sidecar(tmp_path) -> None:
     raw_text = output_path.read_text(encoding="utf-8")
     payload = json.loads(raw_text)
     assert payload == expected_payload
-    assert payload["profile"]["fundName"] == "SPDR S&P 500 ETF Trust"
-    assert payload["profile"]["distributionYield"] is None
+    assert "schemaVersion" not in payload
+    assert "profile" not in payload
+    assert payload["fundName"] == "SPDR S&P 500 ETF Trust"
+    assert payload["distributionYield"] is None
     assert raw_text == expected_text
     assert raw_text.startswith("{\n")
     assert "\n  \"" in raw_text

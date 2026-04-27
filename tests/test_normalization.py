@@ -181,7 +181,18 @@ def test_normalize_for_storage_carries_profile_into_meta() -> None:
     )
 
     assert [row.symbol for row in rows] == ["AMD"]
-    assert meta.profile == profile
+    assert not hasattr(meta, "profile")
+    assert meta.fundName == "iShares Semiconductor ETF"
+    assert meta.exchange == "NASDAQ"
+    assert meta.assetClass == "Equity"
+    assert meta.inceptionDate == "2001-07-10"
+    assert meta.expenseRatio == 0.34
+    assert meta.assetsUnderManagement == 30418500216.0
+    assert meta.sharesOutstanding == 65900000.0
+    assert meta.secYield30Day == 0.27
+    assert meta.distributionFrequency == "Quarterly"
+    assert meta.profileAsOfDate == "2026-04-24"
+    assert meta.profileSourceUrl == "https://example.com/soxx"
 
 
 def test_normalize_for_storage_rejects_cash_like_rows_before_symbol_validation() -> None:

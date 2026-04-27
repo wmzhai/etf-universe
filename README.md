@@ -68,9 +68,9 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 Each successful fetch produces:
 
 - `<SYMBOL>.parquet`: normalized holdings rows with `symbol`, `name`, and `weight`.
-- `<SYMBOL>.meta.json`: metadata documenting the snapshot ({schemaVersion, etfSymbol, issuer, provider, asOfDate, fetchedAt, sourceUrl, sourceFormat, rowCount, normalizedRowCount, droppedRowCount, profile}).
+- `<SYMBOL>.meta.json`: metadata documenting the snapshot ({etfSymbol, issuer, provider, asOfDate, fetchedAt, sourceUrl, sourceFormat, rowCount, normalizedRowCount, droppedRowCount, fundName, exchange, assetClass, fundType, cusip, isin, inceptionDate, expenseRatio, netExpenseRatio, assetsUnderManagement, sharesOutstanding, distributionYield, secYield30Day, distributionFrequency, profileAsOfDate, profileSourceUrl}).
 
-The `profile` object is best-effort ETF reference data. Providers do not publish every field in the holdings feed, so unavailable values are written as `null`. Current profile fields are `fundName`, `exchange`, `assetClass`, `fundType`, `cusip`, `isin`, `inceptionDate`, `expenseRatio`, `netExpenseRatio`, `assetsUnderManagement`, `sharesOutstanding`, `distributionYield`, `secYield30Day`, `distributionFrequency`, `profileAsOfDate`, and `profileSourceUrl`.
+The profile-related metadata fields are best-effort ETF reference data written at the top level of the metadata JSON. Providers do not publish every field in the holdings feed, so unavailable values are written as `null`.
 
 All files land under the directory passed to `--output-dir` (defaults to `output`).
 

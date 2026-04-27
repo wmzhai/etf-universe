@@ -65,7 +65,6 @@ def test_fetch_multi_etf_uses_browser_and_validates_symbols_once(
     spy_rows = [NormalizedHoldingRow(symbol="AAPL", name="Apple Inc.", weight=6.1)]
     qqq_rows = [NormalizedHoldingRow(symbol="NVDA", name="NVIDIA Corp.", weight=6.0)]
     spy_meta = HoldingsMeta(
-        schemaVersion="2026-03-31.etf-universe-meta.v1",
         etfSymbol="SPY",
         issuer="SSGA",
         provider="ssga",
@@ -78,7 +77,6 @@ def test_fetch_multi_etf_uses_browser_and_validates_symbols_once(
         droppedRowCount=0,
     )
     qqq_meta = HoldingsMeta(
-        schemaVersion="2026-03-31.etf-universe-meta.v1",
         etfSymbol="QQQ",
         issuer="Invesco",
         provider="invesco",
@@ -301,7 +299,6 @@ def test_fetch_runs_non_invesco_specs_concurrently(
         return (
             [NormalizedHoldingRow(symbol=row.constituent_symbol, name=row.constituent_name, weight=row.weight)],
             HoldingsMeta(
-                schemaVersion="2026-03-31.etf-universe-meta.v1",
                 etfSymbol=spec.symbol,
                 issuer=spec.issuer,
                 provider=spec.provider,
@@ -395,7 +392,6 @@ def test_fetch_raises_cleanup_error_after_success_and_closes_session(
     )
     qqq_rows = [NormalizedHoldingRow(symbol="NVDA", name="NVIDIA Corp.", weight=6.0)]
     qqq_meta = HoldingsMeta(
-        schemaVersion="2026-03-31.etf-universe-meta.v1",
         etfSymbol="QQQ",
         issuer="Invesco",
         provider="invesco",
@@ -532,7 +528,6 @@ def test_bare_command_fetches_all_supported_etfs_to_default_output_dir(
         return (
             [NormalizedHoldingRow(symbol="AAPL", name="Apple Inc.", weight=6.1)],
             HoldingsMeta(
-                schemaVersion="2026-03-31.etf-universe-meta.v1",
                 etfSymbol="SPY",
                 issuer="SSGA",
                 provider="ssga",

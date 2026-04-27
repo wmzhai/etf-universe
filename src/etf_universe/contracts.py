@@ -60,7 +60,6 @@ class NormalizedHoldingRow:
 
 @dataclass(frozen=True)
 class HoldingsMeta:
-    schemaVersion: str
     etfSymbol: str
     issuer: str
     provider: str
@@ -71,4 +70,19 @@ class HoldingsMeta:
     rowCount: int
     normalizedRowCount: int
     droppedRowCount: int
-    profile: EtfProfile = field(default_factory=EtfProfile)
+    fundName: str | None = None
+    exchange: str | None = None
+    assetClass: str | None = None
+    fundType: str | None = None
+    cusip: str | None = None
+    isin: str | None = None
+    inceptionDate: str | None = None
+    expenseRatio: float | None = None
+    netExpenseRatio: float | None = None
+    assetsUnderManagement: float | None = None
+    sharesOutstanding: float | None = None
+    distributionYield: float | None = None
+    secYield30Day: float | None = None
+    distributionFrequency: str | None = None
+    profileAsOfDate: str | None = None
+    profileSourceUrl: str | None = None

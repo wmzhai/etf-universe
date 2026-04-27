@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import html
 import re
+from dataclasses import asdict
 from datetime import date, datetime, timezone
 from typing import Any
 
 from etf_universe.contracts import FetchResult, HoldingsMeta, NormalizedHoldingRow, EtfSpec, SourceHoldingRow
 
 
-META_SCHEMA_VERSION = "2026-04-27.etf-universe-meta.v2"
 ALLOWED_EQUITY_SYMBOL_PATTERN = re.compile(r"^[A-Z][A-Z0-9]*(?:\.[A-Z0-9]+)*$")
 PLACEHOLDER_TEXT_VALUES = frozenset({"-", "--", "—", "n/a", "nan", "none", "null"})
 CASH_LIKE_FIELD_TERMS = ("cash", "cash equivalent", "currency", "money market")
@@ -160,7 +160,6 @@ def normalize_for_storage(
         raise ValueError(f"{spec.symbol}: no usable holdings rows after normalization")
 
     meta = HoldingsMeta(
-        schemaVersion=META_SCHEMA_VERSION,
         etfSymbol=spec.symbol,
         issuer=spec.issuer,
         provider=spec.provider,
@@ -171,6 +170,6 @@ def normalize_for_storage(
         rowCount=len(fetch_result.rows),
         normalizedRowCount=len(normalized_rows),
         droppedRowCount=dropped_row_count,
-        profile=fetch_result.profile,
+        **asdict(fetch_result.profile),
     )
     return normalized_rows, meta
