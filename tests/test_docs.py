@@ -27,3 +27,9 @@ def test_markdown_docs_do_not_reference_removed_cli_or_validation_flows() -> Non
         content = path.read_text(encoding="utf-8")
         for pattern, reason in LEGACY_PATTERNS.items():
             assert re.search(pattern, content) is None, f"{path} matches /{pattern}/. {reason}"
+
+
+def test_default_output_directory_is_gitignored() -> None:
+    gitignore = Path(".gitignore").read_text(encoding="utf-8").splitlines()
+
+    assert "output/" in gitignore

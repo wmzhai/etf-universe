@@ -16,7 +16,7 @@ from etf_universe.storage import write_meta, write_parquet
 from etf_universe.validation import AlpacaDataSymbolValidator
 
 
-DEFAULT_OUTPUT_DIR = Path.home() / "data" / "universe" / "etf"
+DEFAULT_OUTPUT_DIR = Path("output")
 FETCH_MAX_CONCURRENT_SPECS = 16
 
 

@@ -12,18 +12,24 @@ Curated ETF holdings fetcher and exporter.
 
 ```sh
 uv run etf-universe
-uv run etf-universe --output-dir ~/data/universe/etf
+uv run etf-universe --output-dir ./output
 uv run etf-universe list
-uv run etf-universe fetch --symbols SPY,XLK --output-dir ~/data/universe/etf
+uv run etf-universe fetch --symbols SPY,XLK --output-dir ./output
 ```
 
-The bare command runs a full fetch for every supported ETF. The default output directory is `~/data/universe/etf`.
+The bare command runs a full fetch for every supported ETF. The default output directory is `output`.
 The fetch command writes each ETF’s normalized holdings to `<output-dir>/<SYMBOL>.parquet` by default and a companion `<SYMBOL>.meta.json`.
 Fetch commands also emit runtime logs to `stderr`, including upstream request URLs, response statuses, per-stage elapsed times, and total elapsed time.
 
 ## Supported ETFs
 
 <!-- supported-etfs:start -->
+`ARKF`
+`ARKG`
+`ARKK`
+`ARKQ`
+`ARKW`
+`ARKX`
 `DIA`
 `FDN`
 `GDX`
@@ -39,6 +45,7 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 `QQQ`
 `RSP`
 `SMH`
+`SOXX`
 `SPY`
 `XBI`
 `XLB`
@@ -63,7 +70,7 @@ Each successful fetch produces:
 - `<SYMBOL>.parquet`: normalized holdings rows with `symbol`, `name`, and `weight`.
 - `<SYMBOL>.meta.json`: metadata documenting the snapshot ({schemaVersion, etfSymbol, issuer, provider, asOfDate, fetchedAt, sourceUrl, sourceFormat, rowCount, normalizedRowCount, droppedRowCount}).
 
-All files land under the directory passed to `--output-dir` (defaults to `~/data/universe/etf`).
+All files land under the directory passed to `--output-dir` (defaults to `output`).
 
 ## Symbol validation
 

@@ -32,6 +32,13 @@ ETF_SPECS: dict[str, EtfSpec] = {
     "IYT": EtfSpec("IYT", "Layer 2", "iShares", "ishares", "https://www.ishares.com/us/products/239501/ishares-transportation-average-etf/1467271812596.ajax?fileType=csv"),
     "GDX": EtfSpec("GDX", "Layer 2", "VanEck", "vaneck", "https://www.vaneck.com/us/en/investments/gold-miners-etf-gdx/holdings/"),
     "FDN": EtfSpec("FDN", "Layer 2", "First Trust", "first_trust", "https://www.ftportfolios.com/Retail/Etf/EtfHoldings.aspx?Ticker=FDN"),
+    "SOXX": EtfSpec("SOXX", "Layer 2", "iShares", "ishares", "https://www.ishares.com/us/products/239705/ishares-phlx-semiconductor-etf/1467271812596.ajax?fileType=csv"),
+    "ARKK": EtfSpec("ARKK", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_INNOVATION_ETF_ARKK_HOLDINGS.csv"),
+    "ARKG": EtfSpec("ARKG", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_GENOMIC_REVOLUTION_ETF_ARKG_HOLDINGS.csv"),
+    "ARKW": EtfSpec("ARKW", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_NEXT_GENERATION_INTERNET_ETF_ARKW_HOLDINGS.csv"),
+    "ARKQ": EtfSpec("ARKQ", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_AUTONOMOUS_TECH._&_ROBOTICS_ETF_ARKQ_HOLDINGS.csv"),
+    "ARKF": EtfSpec("ARKF", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_FINTECH_INNOVATION_ETF_ARKF_HOLDINGS.csv"),
+    "ARKX": EtfSpec("ARKX", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_SPACE_EXPLORATION_&_INNOVATION_ETF_ARKX_HOLDINGS.csv"),
     "RSP": EtfSpec("RSP", "Breadth", "Invesco", "invesco", "https://www.invesco.com/us/en/financial-products/etfs/invesco-sp-500-equal-weight-etf.html"),
     "QQEW": EtfSpec("QQEW", "Breadth", "First Trust", "first_trust", "https://www.ftportfolios.com/Retail/Etf/EtfHoldings.aspx?Ticker=QQEW"),
 }

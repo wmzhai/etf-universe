@@ -39,7 +39,7 @@ def test_supported_etfs_block_matches_registry() -> None:
 
 def test_fetch_example_includes_comma_separated_symbols() -> None:
     _assert_readme_contains_symbol(
-        "uv run etf-universe fetch --symbols SPY,XLK --output-dir ./data/universe/etf"
+        "uv run etf-universe fetch --symbols SPY,XLK --output-dir ./output"
     )
 
 
@@ -61,7 +61,7 @@ def test_readme_documents_alpaca_validation_and_env_sample() -> None:
 
 
 def test_cli_default_output_dir_matches_expected_location() -> None:
-    assert DEFAULT_OUTPUT_DIR == Path("data/universe/etf")
+    assert DEFAULT_OUTPUT_DIR == Path("output")
 
 
 def test_readme_documents_parquet_schema() -> None:

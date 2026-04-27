@@ -4,6 +4,7 @@ from typing import Any
 
 from etf_universe.contracts import EtfSpec, FetchResult
 from etf_universe.providers.base import make_session
+from etf_universe.providers.ark import fetch_ark
 from etf_universe.providers.first_trust import fetch_first_trust
 from etf_universe.providers.invesco import close_browser, fetch_invesco, launch_browser
 from etf_universe.providers.ishares import fetch_ishares
@@ -12,6 +13,7 @@ from etf_universe.providers.vaneck import fetch_vaneck
 
 
 PROVIDER_FETCHERS = {
+    "ark": fetch_ark,
     "ssga": fetch_ssga,
     "ishares": fetch_ishares,
     "vaneck": fetch_vaneck,
