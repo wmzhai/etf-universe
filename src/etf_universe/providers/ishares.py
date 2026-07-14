@@ -20,6 +20,23 @@ from etf_universe.profile import (
 from etf_universe.providers.base import HTTP_TIMEOUT, build_source_row, request_with_logging
 
 
+ISHARES_HOLDINGS_API = (
+    "https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api/v1/"
+    "get-fund-document?appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&"
+    "locale=en_US&portfolioId={portfolio_id}&userType=individual&component=holdings"
+)
+
+
+def _holdings_url(source_url: str) -> str:
+    parts = urlsplit(source_url)
+    portfolio_match = re.match(r"/us/products/(?P<portfolio_id>\d+)/", parts.path)
+    if parts.netloc != "www.ishares.com" or portfolio_match is None:
+        return source_url
+    return ISHARES_HOLDINGS_API.format(
+        portfolio_id=portfolio_match.group("portfolio_id"),
+    )
+
+
 def _product_page_url(source_url: str) -> str | None:
     parts = urlsplit(source_url)
     path = re.sub(r"/(?:fund/)?1467271812596\.ajax.*$", "", parts.path)
@@ -135,9 +152,10 @@ def parse_ishares_csv(text: str, source_url: str) -> FetchResult:
 
 
 def fetch_ishares(spec: EtfSpec, session) -> FetchResult:  # noqa: ANN001
-    response = request_with_logging(session, "GET", spec.source_url, timeout=HTTP_TIMEOUT)
+    holdings_url = _holdings_url(spec.source_url)
+    response = request_with_logging(session, "GET", holdings_url, timeout=HTTP_TIMEOUT)
     response.raise_for_status()
-    result = parse_ishares_csv(response.text, spec.source_url)
+    result = parse_ishares_csv(response.text, holdings_url)
 
     profile_url = _product_page_url(spec.source_url)
     if profile_url is None:

@@ -5,8 +5,7 @@ import re
 DOC_PATHS = [
     Path("AGENTS.md"),
     Path("README.md"),
-    Path("docs/superpowers/specs/2026-03-31-etf-universe-design.md"),
-    Path("docs/superpowers/plans/2026-03-31-etf-universe.md"),
+    *sorted(Path("docs").rglob("*.md")),
 ]
 
 LEGACY_PATTERNS = {

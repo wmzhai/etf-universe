@@ -1,4 +1,34 @@
-from etf_universe.providers.ishares import _parse_ishares_product_profile, parse_ishares_csv
+from __future__ import annotations
+
+from typing import Any
+
+from etf_universe.contracts import EtfSpec
+from etf_universe.providers.ishares import (
+    _parse_ishares_product_profile,
+    fetch_ishares,
+    parse_ishares_csv,
+)
+
+
+class FakeResponse:
+    def __init__(self, text: str, url: str) -> None:
+        self.text = text
+        self.content = text.encode()
+        self.status_code = 200
+        self.url = url
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+class FakeSession:
+    def __init__(self, responses: list[FakeResponse]) -> None:
+        self.responses = responses
+        self.calls: list[dict[str, Any]] = []
+
+    def request(self, method: str, url: str, **kwargs: Any) -> FakeResponse:
+        self.calls.append({"method": method, "url": url, **kwargs})
+        return self.responses.pop(0)
 
 
 def test_parse_ishares_csv_extracts_as_of_date_and_rows() -> None:
@@ -59,3 +89,39 @@ def test_parse_ishares_product_profile_extracts_distribution_yield() -> None:
     assert profile.secYield30Day == 0.27
     assert profile.distributionYield == 0.51
     assert profile.distributionFrequency == "Quarterly"
+
+
+def test_fetch_ishares_uses_current_holdings_endpoint_and_product_page() -> None:
+    source_url = (
+        "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/"
+        "1467271812596.ajax?fileType=csv"
+    )
+    holdings_url = (
+        "https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api/v1/"
+        "get-fund-document?appType=PRODUCT_PAGE&appSubType=ISHARES&targetSite=us-ishares&"
+        "locale=en_US&portfolioId=239710&userType=individual&component=holdings"
+    )
+    product_url = "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf"
+    csv_text = """iShares Russell 2000 ETF
+Fund Holdings as of,Jul 10, 2026
+Ticker,Name,Sector,Asset Class,Weight (%),Security Type
+AAPL,Apple Inc.,Technology,Equity,6.10,Common Stock
+"""
+    profile_html = """
+    <html>
+      <head><title>iShares Russell 2000 ETF | iShares</title></head>
+      <body><dl><dt>Expense Ratio</dt><dd>0.19%</dd></dl></body>
+    </html>
+    """
+    session = FakeSession([
+        FakeResponse(csv_text, holdings_url),
+        FakeResponse(profile_html, product_url),
+    ])
+    spec = EtfSpec("IWM", "Layer 0", "iShares", "ishares", source_url)
+
+    result = fetch_ishares(spec, session)
+
+    assert result.source_url == holdings_url
+    assert result.profile.fundName == "iShares Russell 2000 ETF"
+    assert result.profile.expenseRatio == 0.19
+    assert [call["url"] for call in session.calls] == [holdings_url, product_url]

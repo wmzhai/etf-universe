@@ -82,6 +82,11 @@ Symbols are normalized to upper-case with dots (e.g., `BRK.B`) and validated wit
 
 `uv run pytest -v`
 
+See [Architecture](docs/architecture.md) for the fetch pipeline, provider
+boundaries, data invariants, and maintenance checks. Repository-specific
+contributor rules live in [AGENTS.md](AGENTS.md).
+Release notes are recorded in [CHANGELOG.md](CHANGELOG.md).
+
 ## Limitations
 
 - The ETF roster is the curated `ETF_SPECS` dictionary in `src/etf_universe/registry.py`; please align any README updates with that source.
