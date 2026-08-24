@@ -32,7 +32,6 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 `ARKX`
 `DIA`
 `FDN`
-`GDX`
 `IGV`
 `IHI`
 `ITA`

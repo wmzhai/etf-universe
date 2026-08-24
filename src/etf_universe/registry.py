@@ -30,7 +30,6 @@ ETF_SPECS: dict[str, EtfSpec] = {
     "XRT": EtfSpec("XRT", "Layer 2", "SSGA", "ssga", "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xrt.xlsx"),
     "ITA": EtfSpec("ITA", "Layer 2", "iShares", "ishares", "https://www.ishares.com/us/products/239502/ishares-us-aerospace-defense-etf/1467271812596.ajax?fileType=csv"),
     "IYT": EtfSpec("IYT", "Layer 2", "iShares", "ishares", "https://www.ishares.com/us/products/239501/ishares-transportation-average-etf/1467271812596.ajax?fileType=csv"),
-    "GDX": EtfSpec("GDX", "Layer 2", "VanEck", "vaneck", "https://www.vaneck.com/us/en/investments/gold-miners-etf-gdx/holdings/"),
     "FDN": EtfSpec("FDN", "Layer 2", "First Trust", "first_trust", "https://www.ftportfolios.com/Retail/Etf/EtfHoldings.aspx?Ticker=FDN"),
     "SOXX": EtfSpec("SOXX", "Layer 2", "iShares", "ishares", "https://www.ishares.com/us/products/239705/ishares-phlx-semiconductor-etf/1467271812596.ajax?fileType=csv"),
     "ARKK": EtfSpec("ARKK", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_INNOVATION_ETF_ARKK_HOLDINGS.csv"),
