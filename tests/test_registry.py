@@ -30,3 +30,13 @@ def test_thematic_etfs_are_registered() -> None:
     assert ETF_SPECS["ARKQ"].source_url.endswith(
         "ARK_AUTONOMOUS_TECH._&_ROBOTICS_ETF_ARKQ_HOLDINGS.csv"
     )
+
+
+def test_spmo_is_registered_as_invesco_breadth_etf() -> None:
+    spec = ETF_SPECS["SPMO"]
+    assert spec.group == "Breadth"
+    assert spec.issuer == "Invesco"
+    assert spec.provider == "invesco"
+    assert spec.source_url == (
+        "https://www.invesco.com/us/en/financial-products/etfs/invesco-sp-500-momentum-etf.html"
+    )

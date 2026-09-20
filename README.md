@@ -45,6 +45,7 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 `RSP`
 `SMH`
 `SOXX`
+`SPMO`
 `SPY`
 `XBI`
 `XLB`

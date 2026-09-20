@@ -168,8 +168,17 @@ def test_fetch_invesco_qqq_uses_data_holding_api(monkeypatch: pytest.MonkeyPatch
     assert locator.wait_calls == [{"state": "attached", "timeout": 60000}]
 
 
-def test_fetch_invesco_rsp_derives_api_url_from_isin(monkeypatch: pytest.MonkeyPatch) -> None:
-    locator = FakeLocator({"content": " US46137V3574 "})
+@pytest.mark.parametrize(
+    ("symbol", "isin"),
+    [
+        ("RSP", " US46137V3574 "),
+        ("SPMO", " US46138E3392 "),
+    ],
+)
+def test_fetch_invesco_isin_symbols_derive_api_url(
+    monkeypatch: pytest.MonkeyPatch, symbol: str, isin: str
+) -> None:
+    locator = FakeLocator({"content": isin})
     page = FakeInvescoPage({'meta[name="isin"]': locator})
     payload = {"effectiveDate": "2026-03-28", "holdings": []}
     captured: dict[str, str] = {}
@@ -179,9 +188,9 @@ def test_fetch_invesco_rsp_derives_api_url_from_isin(monkeypatch: pytest.MonkeyP
         return payload
 
     monkeypatch.setattr("etf_universe.providers.invesco.browser_fetch_json", fake_browser_fetch_json)
-    result = fetch_invesco(make_spec("RSP"), page)
+    result = fetch_invesco(make_spec(symbol), page)
 
-    expected = build_rsp_api_url("US46137V3574")
+    expected = build_rsp_api_url(isin)
     assert captured["api_url"] == expected
     assert result.source_url == expected
     assert locator.wait_calls == [{"state": "attached", "timeout": 60000}]

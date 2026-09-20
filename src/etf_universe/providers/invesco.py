@@ -23,7 +23,10 @@ from etf_universe.runtime_logging import elapsed_ms, log_event
 INVESCO_FUND_NAMES = {
     "QQQ": "Invesco QQQ ETF",
     "RSP": "Invesco S&P 500 Equal Weight ETF",
+    "SPMO": "Invesco S&P 500 Momentum ETF",
 }
+
+INVESCO_ISIN_API_SYMBOLS = frozenset({"RSP", "SPMO"})
 
 
 def browser_fetch_json(page: Page, api_url: str) -> dict[str, Any]:
@@ -51,7 +54,7 @@ def browser_fetch_json(page: Page, api_url: str) -> dict[str, Any]:
 def build_rsp_api_url(isin: str) -> str:
     cleaned = isin.strip()
     if len(cleaned) < 11:
-        raise ValueError("Unable to derive CUSIP from RSP ISIN")
+        raise ValueError("Unable to derive CUSIP from Invesco ISIN")
     cusip = cleaned[2:11]
     return (
         "https://dng-api.invesco.com/cache/v1/accounts/en_US/shareclasses/"
@@ -144,12 +147,12 @@ def fetch_invesco(spec: EtfSpec, page: Page) -> FetchResult:
         api_url = locator.get_attribute("data-holding-api")
         if not api_url:
             raise ValueError("Unable to find QQQ data-holding-api")
-    elif spec.symbol == "RSP":
+    elif spec.symbol in INVESCO_ISIN_API_SYMBOLS:
         locator = page.locator('meta[name="isin"]').first
         locator.wait_for(state="attached", timeout=60000)
         isin = locator.get_attribute("content")
         if not isin:
-            raise ValueError("Unable to find RSP ISIN")
+            raise ValueError(f"Unable to find {spec.symbol} ISIN")
         api_url = build_rsp_api_url(isin)
     else:
         raise ValueError(f"Unsupported Invesco symbol: {spec.symbol}")

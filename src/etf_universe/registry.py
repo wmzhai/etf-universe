@@ -39,6 +39,7 @@ ETF_SPECS: dict[str, EtfSpec] = {
     "ARKF": EtfSpec("ARKF", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_FINTECH_INNOVATION_ETF_ARKF_HOLDINGS.csv"),
     "ARKX": EtfSpec("ARKX", "Layer 2", "ARK", "ark", "https://assets.ark-funds.com/fund-documents/funds-etf-csv/ARK_SPACE_EXPLORATION_&_INNOVATION_ETF_ARKX_HOLDINGS.csv"),
     "RSP": EtfSpec("RSP", "Breadth", "Invesco", "invesco", "https://www.invesco.com/us/en/financial-products/etfs/invesco-sp-500-equal-weight-etf.html"),
+    "SPMO": EtfSpec("SPMO", "Breadth", "Invesco", "invesco", "https://www.invesco.com/us/en/financial-products/etfs/invesco-sp-500-momentum-etf.html"),
     "QQEW": EtfSpec("QQEW", "Breadth", "First Trust", "first_trust", "https://www.ftportfolios.com/Retail/Etf/EtfHoldings.aspx?Ticker=QQEW"),
 }
 
