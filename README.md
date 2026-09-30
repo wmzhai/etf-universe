@@ -35,6 +35,7 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 `IGV`
 `IHI`
 `ITA`
+`IWC`
 `IWM`
 `IYT`
 `KBE`
@@ -47,6 +48,7 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 `SOXX`
 `SPMO`
 `SPY`
+`VTI`
 `XBI`
 `XLB`
 `XLC`
@@ -92,4 +94,5 @@ Release notes are recorded in [CHANGELOG.md](CHANGELOG.md).
 - The ETF roster is the curated `ETF_SPECS` dictionary in `src/etf_universe/registry.py`; please align any README updates with that source.
 - Each fetch delivers only the latest snapshot published by the provider; historical snapshots must be stored externally.
 - Invesco-backed ETFs require the Chromium browser because their holdings data is discovered in a Playwright browser context rather than a static CSV or XLSX endpoint.
+- Vanguard holdings come from the public fund-profile JSON. The issuer publishes that portfolio on its as-of date, which is typically month-end rather than a daily file.
 - Non-Invesco ETFs are fetched concurrently, but Invesco ETFs still run serially inside one browser session.

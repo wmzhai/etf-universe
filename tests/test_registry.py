@@ -32,6 +32,23 @@ def test_thematic_etfs_are_registered() -> None:
     )
 
 
+def test_vti_and_iwc_are_registered_as_layer_0_etfs() -> None:
+    vti = ETF_SPECS["VTI"]
+    assert vti.group == "Layer 0"
+    assert vti.issuer == "Vanguard"
+    assert vti.provider == "vanguard"
+    assert vti.source_url == "https://investor.vanguard.com/investment-products/etfs/profile/vti"
+
+    iwc = ETF_SPECS["IWC"]
+    assert iwc.group == "Layer 0"
+    assert iwc.issuer == "iShares"
+    assert iwc.provider == "ishares"
+    assert iwc.source_url == (
+        "https://www.ishares.com/us/products/239716/ishares-microcap-etf/"
+        "1467271812596.ajax?fileType=csv"
+    )
+
+
 def test_spmo_is_registered_as_invesco_breadth_etf() -> None:
     spec = ETF_SPECS["SPMO"]
     assert spec.group == "Breadth"

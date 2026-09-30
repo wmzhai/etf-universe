@@ -8,6 +8,8 @@ ETF_SPECS: dict[str, EtfSpec] = {
     "QQQ": EtfSpec("QQQ", "Layer 0", "Invesco", "invesco", "https://www.invesco.com/qqq-etf/en/about.html"),
     "DIA": EtfSpec("DIA", "Layer 0", "SSGA", "ssga", "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-dia.xlsx"),
     "IWM": EtfSpec("IWM", "Layer 0", "iShares", "ishares", "https://www.ishares.com/us/products/239710/ishares-russell-2000-etf/1467271812596.ajax?fileType=csv"),
+    "IWC": EtfSpec("IWC", "Layer 0", "iShares", "ishares", "https://www.ishares.com/us/products/239716/ishares-microcap-etf/1467271812596.ajax?fileType=csv"),
+    "VTI": EtfSpec("VTI", "Layer 0", "Vanguard", "vanguard", "https://investor.vanguard.com/investment-products/etfs/profile/vti"),
     "XLK": EtfSpec("XLK", "Layer 1", "SSGA", "ssga", "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlk.xlsx"),
     "XLF": EtfSpec("XLF", "Layer 1", "SSGA", "ssga", "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xlf.xlsx"),
     "XLE": EtfSpec("XLE", "Layer 1", "SSGA", "ssga", "https://www.ssga.com/library-content/products/fund-data/etfs/us/holdings-daily-us-en-xle.xlsx"),

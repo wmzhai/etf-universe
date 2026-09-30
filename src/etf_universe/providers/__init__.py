@@ -10,6 +10,7 @@ from etf_universe.providers.invesco import close_browser, fetch_invesco, launch_
 from etf_universe.providers.ishares import fetch_ishares
 from etf_universe.providers.ssga import fetch_ssga
 from etf_universe.providers.vaneck import fetch_vaneck
+from etf_universe.providers.vanguard import fetch_vanguard
 
 
 PROVIDER_FETCHERS = {
@@ -17,6 +18,7 @@ PROVIDER_FETCHERS = {
     "ssga": fetch_ssga,
     "ishares": fetch_ishares,
     "vaneck": fetch_vaneck,
+    "vanguard": fetch_vanguard,
     "first_trust": fetch_first_trust,
     "invesco": fetch_invesco,
 }

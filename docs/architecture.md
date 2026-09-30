@@ -48,6 +48,7 @@ provider-specific formats and enrichment logic outside CLI orchestration.
 | ARK | Official CSV | Best-effort enrichment from ARK fund data |
 | SSGA | Official XLSX | Fields available in the workbook |
 | iShares | Official CSV | CSV fields plus the product page |
+| Vanguard | Official fund-profile JSON (`{SYMBOL}-AdditionalFundData`) | Fund-profile JSON; holdings are typically month-end |
 | VanEck | Product page followed by its dataset endpoint | Fields in the dataset |
 | First Trust | Holdings HTML | Fund summary page |
 | Invesco | Playwright-assisted JSON discovery and retrieval | Product page content |

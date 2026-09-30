@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added `VTI` (Vanguard Total Stock Market ETF) with a Vanguard fund-profile adapter.
+- Added `IWC` (iShares Micro-Cap ETF) on the existing iShares adapter.
+
 ## [0.1.2] - 2026-09-20
 
 ### Added
