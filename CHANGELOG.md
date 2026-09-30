@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `VTI` (Vanguard Total Stock Market ETF) with a Vanguard fund-profile adapter.
 - Added `IWC` (iShares Micro-Cap ETF) on the existing iShares adapter.
 
+### Fixed
+
+- Holdings export merges rows that normalize to the same symbol and sums their weights.
+- A holding with no weight is stored as `0` so the symbol remains in the constituent file.
+
 ## [0.1.2] - 2026-09-20
 
 ### Added

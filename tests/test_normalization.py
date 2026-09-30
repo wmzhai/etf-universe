@@ -112,6 +112,41 @@ def test_collect_candidate_symbols_rejects_iso_currency_code_name_pairs(
     assert collect_candidate_symbols(fetch_result) == ["AAPL"]
 
 
+def test_normalize_for_storage_merges_duplicate_symbols_and_fills_missing_weights() -> None:
+    spec = EtfSpec(
+        symbol="IWC",
+        group="Layer 2",
+        issuer="iShares",
+        provider="ishares",
+        source_url="https://example.com/iwc.csv",
+    )
+    fetch_result = FetchResult(
+        as_of_date=date(2026, 9, 28),
+        source_url="https://example.com/iwc.csv",
+        source_format="csv",
+        rows=[
+            SourceHoldingRow("NTRB", "NUTRIBAND INC", 0.01),
+            SourceHoldingRow("NTRB", "NUTRIBAND INC SERIES A", 0.0),
+            SourceHoldingRow("btcs", "BTCS", 0.02),
+            SourceHoldingRow("BTCS", "BTCS other", 0.03),
+            SourceHoldingRow("TPST", "Tempest Therapeutics Inc", None),
+        ],
+    )
+
+    rows, meta = normalize_for_storage(
+        spec=spec,
+        fetched_at=datetime(2026, 9, 30, 12, 0, tzinfo=timezone.utc),
+        fetch_result=fetch_result,
+    )
+
+    assert [(row.symbol, row.name, row.weight) for row in rows] == [
+        ("NTRB", "NUTRIBAND INC", 0.01),
+        ("BTCS", "BTCS", 0.05),
+        ("TPST", "Tempest Therapeutics Inc", 0.0),
+    ]
+    assert meta.count == 3
+
+
 def test_normalize_for_storage_builds_rows_and_meta() -> None:
     spec = EtfSpec(
         symbol="SPY",

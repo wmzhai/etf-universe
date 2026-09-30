@@ -128,6 +128,28 @@ def collect_candidate_symbols(fetch_result: FetchResult) -> list[str]:
     return symbols
 
 
+def collapse_storage_rows(rows: list[NormalizedHoldingRow]) -> list[NormalizedHoldingRow]:
+    collapsed: dict[str, NormalizedHoldingRow] = {}
+    order: list[str] = []
+    for row in rows:
+        weight = 0.0 if row.weight is None else row.weight
+        current = collapsed.get(row.symbol)
+        if current is None:
+            collapsed[row.symbol] = NormalizedHoldingRow(
+                symbol=row.symbol,
+                name=row.name,
+                weight=weight,
+            )
+            order.append(row.symbol)
+            continue
+        collapsed[row.symbol] = NormalizedHoldingRow(
+            symbol=current.symbol,
+            name=current.name,
+            weight=(current.weight or 0.0) + weight,
+        )
+    return [collapsed[symbol] for symbol in order]
+
+
 def normalize_for_storage(
     spec: EtfSpec,
     fetched_at: datetime,
@@ -154,6 +176,7 @@ def normalize_for_storage(
             )
         )
 
+    normalized_rows = collapse_storage_rows(normalized_rows)
     if not normalized_rows:
         raise ValueError(f"{spec.symbol}: no usable holdings rows after normalization")
 
