@@ -76,7 +76,7 @@ def test_parse_ishares_product_profile_extracts_distribution_yield() -> None:
           <dd>0.27%</dd>
           <dt>12m Trailing Yield</dt>
           <dd>as of Mar 31, 2026</dd>
-          <dd>0.51%</dd>
+          <dd>1.02%</dd>
           <dt>Distribution Frequency</dt>
           <dd>Quarterly</dd>
         </dl>
@@ -87,8 +87,30 @@ def test_parse_ishares_product_profile_extracts_distribution_yield() -> None:
     profile = _parse_ishares_product_profile(html_text, "https://example.com/soxx")
 
     assert profile.secYield30Day == 0.27
-    assert profile.distributionYield == 0.51
+    assert profile.distributionYield == 0.0102
     assert profile.distributionFrequency == "Quarterly"
+
+
+def test_parse_ishares_product_profile_reads_split_as_of_yield() -> None:
+    html_text = """
+    <html>
+      <body>
+        <p>30 Day SEC Yield as</p>
+        <p>of</p>
+        <p>Sep 30, 2026</p>
+        <p>1.18%</p>
+        <p>12m Trailing Yield as</p>
+        <p>of</p>
+        <p>Sep 30, 2026</p>
+        <p>0.98%</p>
+      </body>
+    </html>
+    """
+
+    profile = _parse_ishares_product_profile(html_text, "https://example.com/iwm")
+
+    assert profile.secYield30Day == 1.18
+    assert profile.distributionYield == 0.0098
 
 
 def test_fetch_ishares_uses_current_holdings_endpoint_and_product_page() -> None:

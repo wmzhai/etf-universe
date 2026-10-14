@@ -70,7 +70,7 @@ Fetch commands also emit runtime logs to `stderr`, including upstream request UR
 Each successful fetch produces:
 
 - `<SYMBOL>.parquet`: normalized holdings rows with `symbol`, `name`, and `weight`.
-- `<SYMBOL>.meta.json`: metadata documenting the snapshot ({etfSymbol, issuer, fetchedAt, sourceUrl, count, fundName, exchange, assetClass, cusip, isin, inceptionDate, expenseRatio, netExpenseRatio, assetsUnderManagement, sharesOutstanding, distributionYield, secYield30Day}).
+- `<SYMBOL>.meta.json`: metadata documenting the snapshot ({etfSymbol, issuer, fetchedAt, sourceUrl, count, fundName, exchange, assetClass, cusip, isin, inceptionDate, expenseRatio, netExpenseRatio, assetsUnderManagement, sharesOutstanding, distributionYield, secYield30Day}). `distributionYield` is a decimal ratio (`1.02%` is `0.0102`). Issuers without a distribution yield store `null`. SEC yield and expense ratio stay percent points and are not copied into `distributionYield`.
 
 The profile-related metadata fields are best-effort ETF reference data written at the top level of the metadata JSON. Providers do not publish every field in the holdings feed, so unavailable values are written as `null`.
 

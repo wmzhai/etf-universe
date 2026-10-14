@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `distributionYield` is a decimal ratio. Issuer text `1.02%` is stored as `0.0102`.
+- A missing issuer distribution yield stays null. Non-finite, negative, or still-too-large values are dropped instead of stored as zero.
+- SEC yield and expense ratio stay issuer percent points and are not copied into the distribution yield.
+
 ### Added
 
 - Added `VTI` (Vanguard Total Stock Market ETF) with a Vanguard fund-profile adapter.

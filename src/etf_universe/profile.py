@@ -79,15 +79,37 @@ def label_value_with_as_of(lines: list[str], label: str) -> tuple[str | None, st
     for index, line in enumerate(lines):
         normalized = _normalize_label(line)
         if normalized == target or normalized.startswith(f"{target} "):
-            value = _inline_value(line)
-            if value is not None:
-                return value, None
+            remainder = normalized[len(target) :].strip()
+            if remainder and remainder not in {"as", "as of"}:
+                value = _inline_value(line)
+                if value is not None:
+                    return value, None
 
-            next_line = _next_value(lines, index)
-            if next_line and next_line.casefold().startswith("as of "):
-                return _next_value(lines, index + 1), parse_profile_date(next_line)
-            return next_line, None
+            value, as_of = _value_after_as_of(lines, index)
+            if value is not None:
+                return value, as_of
     return None, None
+
+
+def _value_after_as_of(lines: list[str], index: int) -> tuple[str | None, str | None]:
+    as_of = None
+    for raw in lines[index + 1 : index + 6]:
+        cleaned = clean_text(raw)
+        if cleaned is None:
+            continue
+        folded = cleaned.casefold()
+        if folded in {"as", "of", "as of"}:
+            continue
+        if folded.startswith("as of "):
+            as_of = parse_profile_date(cleaned)
+            continue
+        if parse_float(cleaned) is None:
+            parsed_date = parse_profile_date(cleaned)
+            if parsed_date is not None:
+                as_of = parsed_date
+                continue
+        return cleaned, as_of
+    return None, as_of
 
 
 def first_as_of_date(lines: list[str]) -> str | None:

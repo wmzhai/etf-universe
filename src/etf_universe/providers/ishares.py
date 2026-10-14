@@ -9,7 +9,7 @@ from urllib.parse import urlsplit, urlunsplit
 from bs4 import BeautifulSoup
 
 from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
-from etf_universe.normalization import clean_text, parse_date, parse_float
+from etf_universe.normalization import clean_text, parse_date, parse_float, parse_percent_ratio
 from etf_universe.profile import (
     label_value,
     label_value_with_as_of,
@@ -68,7 +68,7 @@ def _parse_ishares_product_profile(html_text: str, source_url: str) -> EtfProfil
         expenseRatio=parse_float(label_value(lines, "Expense Ratio")),
         assetsUnderManagement=parse_compact_number(assets_under_management),
         sharesOutstanding=parse_compact_number(shares_outstanding),
-        distributionYield=parse_float(distribution_yield),
+        distributionYield=parse_percent_ratio(distribution_yield),
         secYield30Day=parse_float(sec_yield),
         distributionFrequency=label_value(lines, "Distribution Frequency"),
         profileAsOfDate=(

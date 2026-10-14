@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import math
 import re
 from dataclasses import asdict
 from datetime import date, datetime, timezone
@@ -45,6 +46,35 @@ def parse_float(value: Any) -> float | None:
         return float(text)
     except ValueError:
         return None
+
+
+def parse_percent_ratio(value: Any) -> float | None:
+    """Issuer dividend text is percent points. ``1.02%`` becomes ``0.0102``."""
+    number = parse_float(value)
+    if number is None:
+        return None
+    return number / 100.0
+
+
+# A stored dividend yield is a ratio. 0.5 would be a 50% yield, which this
+# pipeline rejects. Values at or above that bound are leftover percent points.
+MAX_DISTRIBUTION_YIELD = 0.5
+
+
+def distribution_yield_ratio(value: float | None) -> float | None:
+    """Keep a decimal yield, or convert one leftover percent-point number.
+
+    ``None`` stays ``None`` when the issuer page has no distribution yield.
+    SEC yield and expense ratio must not be passed here. A value already below
+    0.5 is kept, so ``0.0102`` is not divided again. ``1.02`` becomes ``0.0102``.
+    """
+    if value is None or not math.isfinite(value) or value < 0:
+        return None
+    if value >= MAX_DISTRIBUTION_YIELD:
+        value = value / 100.0
+    if not math.isfinite(value) or value < 0 or value >= MAX_DISTRIBUTION_YIELD:
+        return None
+    return value
 
 
 def parse_date(value: Any) -> date:
@@ -180,16 +210,20 @@ def normalize_for_storage(
     if not normalized_rows:
         raise ValueError(f"{spec.symbol}: no usable holdings rows after normalization")
 
+    profile_fields = {
+        key: value
+        for key, value in asdict(fetch_result.profile).items()
+        if key not in META_PROFILE_EXCLUDED_FIELDS
+    }
+    profile_fields["distributionYield"] = distribution_yield_ratio(
+        profile_fields.get("distributionYield")
+    )
     meta = HoldingsMeta(
         etfSymbol=spec.symbol,
         issuer=spec.issuer,
         fetchedAt=fetched_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
         sourceUrl=fetch_result.source_url,
         count=len(normalized_rows),
-        **{
-            key: value
-            for key, value in asdict(fetch_result.profile).items()
-            if key not in META_PROFILE_EXCLUDED_FIELDS
-        },
+        **profile_fields,
     )
     return normalized_rows, meta

@@ -5,6 +5,7 @@ import pytest
 from etf_universe.contracts import EtfProfile, EtfSpec, FetchResult, SourceHoldingRow
 from etf_universe.normalization import (
     collect_candidate_symbols,
+    distribution_yield_ratio,
     normalize_for_storage,
     parse_date_from_text,
     parse_float,
@@ -38,6 +39,16 @@ def test_parse_date_from_text_extracts_matching_date() -> None:
 
 def test_parse_float_supports_percent_and_parentheses() -> None:
     assert parse_float("6.1%") == 6.1
+
+
+def test_distribution_yield_ratio_keeps_decimals_and_drops_inconsistent_values() -> None:
+    assert distribution_yield_ratio(None) is None
+    assert distribution_yield_ratio(0.0102) == 0.0102
+    assert distribution_yield_ratio(1.02) == 0.0102
+    assert distribution_yield_ratio(0.0) == 0.0
+    assert distribution_yield_ratio(-0.01) is None
+    assert distribution_yield_ratio(float("nan")) is None
+    assert distribution_yield_ratio(80.0) is None
     assert parse_float("(1.25)") == -1.25
 
 
